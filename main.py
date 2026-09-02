@@ -17,8 +17,11 @@ CATEGORIAS = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Trab
 def carregar_usuarios():
     if not os.path.exists(ARQUIVO_USUARIOS):
         return {}
-    with open(ARQUIVO_USUARIOS, "r") as f:
-        return json.load(f)
+    try:
+        with open(ARQUIVO_USUARIOS, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def salvar_usuarios(usuarios):
     with open(ARQUIVO_USUARIOS, "w") as f:
@@ -31,8 +34,11 @@ def carregar_dados_usuario(usuario):
     caminho = obter_caminho_dados(usuario)
     if not os.path.exists(caminho):
         return {"renda": 0.0, "gastos": []}
-    with open(caminho, "r") as f:
-        return json.load(f)
+    try:
+        with open(caminho, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"renda": 0.0, "gastos": []}
 
 def salvar_dados_usuario(usuario, dados):
     caminho = obter_caminho_dados(usuario)
@@ -81,11 +87,12 @@ def main(page: ft.Page):
 
     def fazer_login(e):
         nonlocal usuario_atual, dados
-        user = entry_login_user.value.strip().lower()
-        senha = entry_login_pass.value.strip()
+        user = entry_login_user.value.strip().lower() if entry_login_user.value else ""
+        senha = entry_login_pass.value.strip() if entry_login_pass.value else ""
 
         if not user or not senha:
             lbl_login_aviso.value = "⚠️ Preencha usuário e senha!"
+            lbl_login_aviso.color = ft.Colors.RED_400
             page.update()
             return
 
@@ -96,20 +103,23 @@ def main(page: ft.Page):
             carregar_tela_financeira()
         else:
             lbl_login_aviso.value = "❌ Usuário ou senha incorretos!"
+            lbl_login_aviso.color = ft.Colors.RED_400
             page.update()
 
     def criar_conta(e):
-        user = entry_login_user.value.strip().lower()
-        senha = entry_login_pass.value.strip()
+        user = entry_login_user.value.strip().lower() if entry_login_user.value else ""
+        senha = entry_login_pass.value.strip() if entry_login_pass.value else ""
 
         if not user or not senha:
             lbl_login_aviso.value = "⚠️ Digite usuário e senha para cadastrar!"
+            lbl_login_aviso.color = ft.Colors.RED_400
             page.update()
             return
 
         usuarios = carregar_usuarios()
         if user in usuarios:
             lbl_login_aviso.value = "⚠️ Usuário já existe! Escolha outro nome."
+            lbl_login_aviso.color = ft.Colors.RED_400
             page.update()
             return
 
@@ -128,7 +138,6 @@ def main(page: ft.Page):
         page.add(
             ft.Container(
                 padding=20,
-                alignment=ft.alignment.center,
                 content=ft.Column([
                     ft.Text("🔐 Acesso ao Sistema", size=22, weight=ft.FontWeight.BOLD),
                     ft.Divider(),
@@ -138,7 +147,7 @@ def main(page: ft.Page):
                     ft.Row([
                         ft.ElevatedButton("Entrar", on_click=fazer_login, bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE, expand=True),
                         ft.OutlinedButton("Criar Conta", on_click=criar_conta, expand=True),
-                    ]),
+                    ], width=300),
                 ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             )
         )
