@@ -1,6 +1,7 @@
 import flet as ft
 from supabase import create_client, Client
 import os
+from datetime import datetime
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -165,6 +166,17 @@ def main(page: ft.Page):
                         cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
                         sinal = "+" if tipo == "Receita" else "-"
 
+                        # TRATAMENTO DE DATA E HORA
+                        raw_data = item.get("created_at") or item.get("data")
+                        if raw_data:
+                            try:
+                                dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
+                                str_data_hora = dt.strftime("%d/%m/%Y %H:%M")
+                            except Exception:
+                                str_data_hora = str(raw_data)
+                        else:
+                            str_data_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
+
                         btn_deletar = ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
                             icon_color=ft.Colors.RED_400,
@@ -178,7 +190,7 @@ def main(page: ft.Page):
                                     ft.Column(
                                         [
                                             ft.Text(desc, weight=ft.FontWeight.BOLD, size=16),
-                                            ft.Text(f"{cat} • {sinal}R$ {valor:.2f}", color=cor_valor),
+                                            ft.Text(f"{cat} • {str_data_hora} • {sinal}R$ {valor:.2f}", color=cor_valor),
                                         ],
                                         expand=True
                                     ),
@@ -214,7 +226,8 @@ def main(page: ft.Page):
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
                         "categoria": dd_categoria.value,
-                        "tipo": tipo
+                        "tipo": tipo,
+                        "created_at": datetime.now().isoformat()
                     }
 
                     supabase.table("gastos").insert(payload).execute()
@@ -262,7 +275,6 @@ def main(page: ft.Page):
                 ),
                 ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                # ALTERAÇÃO CIRÚRGICA: Uso de ft.Row para centralização garantida
                 ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                 msg_erro,
                 msg_sucesso,
