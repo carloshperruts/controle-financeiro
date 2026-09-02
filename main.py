@@ -4,11 +4,12 @@ ssl._create_default_https_context = ssl._create_unverified_context
 import csv
 import json
 import re
+from datetime import datetime
 import flet as ft
 import matplotlib.pyplot as plt
 
 ARQUIVO = "dados_financeiros.json"
-CATEGORIAS = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"]
+CATEGORIAS = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Trabalho", "Outros"]
 
 def carregar_dados():
     try:
@@ -48,17 +49,21 @@ def main(page: ft.Page):
     page.title = "Controle Financeiro Pessoal"
     page.theme_mode = ft.ThemeMode.DARK
     page.window_width = 450
-    page.window_height = 750
+    page.window_height = 800
     page.scroll = ft.ScrollMode.AUTO
 
     dados = carregar_dados()
 
-    lbl_total_gasto = ft.Text(value="Total Gasto: R$ 0.00", size=16, weight=ft.FontWeight.BOLD)
+    lbl_total_gasto = ft.Text(value="Gastos: R$ 0.00", size=14, color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
+    lbl_total_receita = ft.Text(value="Receitas: R$ 0.00", size=14, color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
     lbl_saldo = ft.Text(value="Saldo: R$ 0.00", size=16, weight=ft.FontWeight.BOLD)
+    
+    lbl_aviso = ft.Text(value="", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.AMBER)
 
-    entry_renda = ft.TextField(label="Renda Mensal (R$)", value=f"{dados['renda']:.2f}", width=180, keyboard_type=ft.KeyboardType.NUMBER)
-    entry_desc = ft.TextField(label="Descrição do Gasto", expand=True)
+    entry_renda = ft.TextField(label="Renda Base (R$)", value=f"{dados['renda']:.2f}", width=180, keyboard_type=ft.KeyboardType.NUMBER)
+    entry_desc = ft.TextField(label="Descrição", expand=True)
     entry_valor = ft.TextField(label="Valor (R$)", width=130, keyboard_type=ft.KeyboardType.NUMBER)
+    
     combo_cat = ft.Dropdown(
         label="Categoria",
         options=[ft.dropdown.Option(c) for c in CATEGORIAS],
@@ -76,11 +81,19 @@ def main(page: ft.Page):
 
     lista_gastos_vview = ft.Column(scroll=ft.ScrollMode.AUTO, height=250)
 
-    def atualizar_tela():
-        total = sum(g["valor"] for g in dados["gastos"])
-        saldo = dados["renda"] - total
+    def mostrar_mensagem(texto, cor=ft.Colors.AMBER):
+        lbl_aviso.value = texto
+        lbl_aviso.color = cor
+        page.update()
 
-        lbl_total_gasto.value = f"Total Gasto: R$ {total:.2f}"
+    def atualizar_tela():
+        total_gastos = sum(g["valor"] for g in dados["gastos"] if g.get("tipo", "gasto") == "gasto")
+        total_receitas = sum(g["valor"] for g in dados["gastos"] if g.get("tipo") == "receita")
+        
+        saldo = dados["renda"] + total_receitas - total_gastos
+
+        lbl_total_gasto.value = f"Gastos: R$ {total_gastos:.2f}"
+        lbl_total_receita.value = f"Receitas: R$ {total_receitas:.2f}"
         lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
         lbl_saldo.color = ft.Colors.RED_400 if saldo < 0 else ft.Colors.GREEN_400
 
@@ -95,10 +108,16 @@ def main(page: ft.Page):
         for item in dados["gastos"]:
             cat = item.get("categoria", "Outros")
             desc = item["descricao"]
+            tipo = item.get("tipo", "gasto")
+            # Garante compatibilidade com itens antigos salvos sem data
+            data_hora = item.get("data_hora", "Data não registrada")
 
             if (cat_filtro == "Todas" or cat == cat_filtro) and (termo in desc.lower()):
                 def criar_remover_handler(item_alvo):
-                    return lambda e: remover_gasto(item_alvo)
+                    return lambda e: remover_transacao(item_alvo)
+
+                cor_valor = ft.Colors.GREEN_400 if tipo == "receita" else ft.Colors.RED_400
+                sinal = "+" if tipo == "receita" else "-"
 
                 card = ft.Card(
                     content=ft.Container(
@@ -106,12 +125,13 @@ def main(page: ft.Page):
                         content=ft.Row([
                             ft.Column([
                                 ft.Text(desc, weight=ft.FontWeight.BOLD, size=15),
-                                ft.Text(f"{cat} • R$ {item['valor']:.2f}", color=ft.Colors.GREY_400, size=13),
+                                ft.Text(f"{cat} • {sinal}R$ {item['valor']:.2f}", color=cor_valor, size=13),
+                                ft.Text(f"📅 {data_hora}", size=11, color=ft.Colors.GREY_400), # Exibe Data e Hora
                             ], expand=True),
                             ft.IconButton(
                                 icon=ft.Icons.DELETE_OUTLINED,
                                 icon_color=ft.Colors.RED_400,
-                                tooltip="Remover Gasto",
+                                tooltip="Remover",
                                 on_click=criar_remover_handler(item)
                             )
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
@@ -127,33 +147,54 @@ def main(page: ft.Page):
             dados["renda"] = val
             salvar_dados(dados)
             atualizar_tela()
-            page.open(ft.SnackBar(ft.Text("Renda atualizada!")))
+            mostrar_mensagem("✅ Renda atualizada!", ft.Colors.GREEN_400)
         except ValueError:
-            page.open(ft.SnackBar(ft.Text("Erro: Valor de renda inválido.")))
+            mostrar_mensagem("⚠️ Erro: Valor de renda inválido.", ft.Colors.RED_400)
 
-    def adicionar_gasto(e):
+    def adicionar_transacao(tipo):
         desc = entry_desc.value.strip() if entry_desc.value else ""
         valor_raw = entry_valor.value.strip() if entry_valor.value else ""
         cat = combo_cat.value
 
         if not desc:
-            page.open(ft.SnackBar(ft.Text("Preencha a descrição do gasto.")))
+            mostrar_mensagem("⚠️ Preencha a descrição antes de continuar!", ft.Colors.RED_400)
+            return
+
+        if not valor_raw:
+            mostrar_mensagem("⚠️ Digite um valor para a transação!", ft.Colors.RED_400)
             return
 
         try:
             valor = limpar_e_converter_numero(valor_raw)
-            dados["gastos"].append({"descricao": desc, "valor": valor, "categoria": cat})
+            
+            if valor <= 0:
+                mostrar_mensagem("⚠️ O valor precisa ser maior que zero!", ft.Colors.RED_400)
+                return
+
+            # Captura a data e hora exata da operação
+            agora = datetime.now().strftime("%d/%m/%Y às %H:%M")
+
+            dados["gastos"].append({
+                "descricao": desc,
+                "valor": valor,
+                "categoria": cat,
+                "tipo": tipo,
+                "data_hora": agora
+            })
+            
             salvar_dados(dados)
             entry_desc.value = ""
             entry_valor.value = ""
             atualizar_tela()
+            mostrar_mensagem(f"✅ {'Receita' if tipo == 'receita' else 'Gasto'} adicionado com sucesso!", ft.Colors.GREEN_400)
         except ValueError:
-            page.open(ft.SnackBar(ft.Text("Erro: Digite um valor válido.")))
+            mostrar_mensagem("❌ Erro: Digite um valor numérico válido.", ft.Colors.RED_400)
 
-    def remover_gasto(item):
+    def remover_transacao(item):
         dados["gastos"].remove(item)
         salvar_dados(dados)
         atualizar_tela()
+        mostrar_mensagem("Item removido.", ft.Colors.AMBER)
 
     def limpar_todos(e):
         if not dados["gastos"]:
@@ -161,34 +202,42 @@ def main(page: ft.Page):
         dados["gastos"] = []
         salvar_dados(dados)
         atualizar_tela()
-        page.open(ft.SnackBar(ft.Text("Todos os gastos foram removidos!")))
+        mostrar_mensagem("Todas as transações foram removidas!", ft.Colors.AMBER)
 
     def exportar_csv(e):
         if not dados["gastos"]:
-            page.open(ft.SnackBar(ft.Text("Sem gastos para exportar.")))
+            mostrar_mensagem("Sem transações para exportar.", ft.Colors.AMBER)
             return
         try:
             with open("relatorio_financeiro.csv", mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
-                writer.writerow(["Descrição", "Valor (R$)", "Categoria"])
+                # Adiciona Data/Hora no relatório CSV
+                writer.writerow(["Descrição", "Valor (R$)", "Categoria", "Tipo", "Data/Hora"])
                 for item in dados["gastos"]:
-                    writer.writerow([item["descricao"], f"{item['valor']:.2f}", item.get("categoria", "Outros")])
-            page.open(ft.SnackBar(ft.Text("Exportado para relatorio_financeiro.csv!")))
+                    writer.writerow([
+                        item["descricao"],
+                        f"{item['valor']:.2f}",
+                        item.get("categoria", "Outros"),
+                        item.get("tipo", "gasto"),
+                        item.get("data_hora", "N/A")
+                    ])
+            mostrar_mensagem("Exportado para relatorio_financeiro.csv!", ft.Colors.GREEN_400)
         except Exception as ex:
-            page.open(ft.SnackBar(ft.Text(f"Erro ao exportar: {ex}")))
+            mostrar_mensagem(f"Erro ao exportar: {ex}", ft.Colors.RED_400)
 
     def exibir_grafico(e):
-        if not dados["gastos"]:
-            page.open(ft.SnackBar(ft.Text("Sem gastos para gerar gráfico.")))
+        gastos_apenas = [g for g in dados["gastos"] if g.get("tipo", "gasto") == "gasto"]
+        if not gastos_apenas:
+            mostrar_mensagem("Sem gastos para gerar gráfico.", ft.Colors.AMBER)
             return
         totais_cat = {}
-        for g in dados["gastos"]:
+        for g in gastos_apenas:
             c = g.get("categoria", "Outros")
             totais_cat[c] = totais_cat.get(c, 0.0) + g["valor"]
 
         plt.figure(figsize=(6, 5))
         plt.pie(totais_cat.values(), labels=totais_cat.keys(), autopct='%1.1f%%', startangle=140)
-        plt.title("Distribuição de Gastos")
+        plt.title("Distribuição de Gastos por Categoria")
         plt.tight_layout()
         plt.show()
 
@@ -200,11 +249,16 @@ def main(page: ft.Page):
             padding=10,
             content=ft.Column([
                 ft.Row([entry_renda, ft.ElevatedButton("Atualizar", on_click=atualizar_renda)]),
-                ft.Row([lbl_total_gasto, lbl_saldo], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([lbl_total_receita, lbl_total_gasto], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Divider(),
+                ft.Row([lbl_aviso], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([entry_desc]),
                 ft.Row([entry_valor, combo_cat]),
-                ft.ElevatedButton("➕ Adicionar Gasto", on_click=adicionar_gasto, width=400),
+                ft.Row([
+                    ft.ElevatedButton("➕ Receita", on_click=lambda e: adicionar_transacao("receita"), bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, expand=True),
+                    ft.ElevatedButton("➖ Gasto", on_click=lambda e: adicionar_transacao("gasto"), bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE, expand=True),
+                ]),
                 ft.Divider(),
                 ft.Row([entry_busca, combo_filtro_cat]),
                 ft.Row([
@@ -213,7 +267,7 @@ def main(page: ft.Page):
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(),
                 lista_gastos_vview,
-                ft.ElevatedButton("🗑️ Limpar Todos", on_click=limpar_todos, color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_600, width=400)
+                ft.ElevatedButton("🗑️ Limpar Todos", on_click=limpar_todos, color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_900, width=400)
             ])
         )
     )
@@ -223,4 +277,5 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8550))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port)
+    host = "0.0.0.0" if "PORT" in os.environ else "localhost"
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host=host, port=port)
