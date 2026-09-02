@@ -124,7 +124,7 @@ def main(page: ft.Page):
             lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
             lista_gastos_ui = ft.Column()
-            pie_chart_ui = ft.Column(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            grafico_ui = ft.Column()
 
             def calcular_totais(registros):
                 tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
@@ -143,9 +143,7 @@ def main(page: ft.Page):
                 lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
 
             def atualizar_grafico(registros):
-                pie_chart_ui.controls.clear()
-                
-                # Agrupa apenas gastos por categoria
+                grafico_ui.controls.clear()
                 gastos = [r for r in registros if r.get("tipo", "Gasto") == "Gasto"]
                 tot_gasto = sum(float(r["valor"]) for r in gastos)
 
@@ -167,43 +165,26 @@ def main(page: ft.Page):
                     ft.Colors.PINK_400
                 ]
 
-                sections = []
-                legenda_controls = []
+                grafico_ui.controls.append(ft.Text("📊 Distribuição de Gastos Por Categoria", weight=ft.FontWeight.BOLD, size=16))
 
                 for idx, (cat, val) in enumerate(categorias.items()):
                     porcentagem = (val / tot_gasto) * 100
                     cor = cores[idx % len(cores)]
 
-                    sections.append(
-                        ft.PieChartSection(
-                            val,
-                            title=f"{porcentagem:.1f}%",
-                            color=cor,
-                            radius=40,
-                            title_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
-                        )
-                    )
-
-                    legenda_controls.append(
-                        ft.Row(
+                    grafico_ui.controls.append(
+                        ft.Column(
                             [
-                                ft.Container(width=12, height=12, bgcolor=cor, border_radius=3),
-                                ft.Text(f"{cat}: R$ {val:.2f} ({porcentagem:.1f}%)", size=12)
-                            ],
-                            alignment=ft.MainAxisAlignment.CENTER
+                                ft.Row(
+                                    [
+                                        ft.Text(f"{cat}", weight=ft.FontWeight.BOLD),
+                                        ft.Text(f"R$ {val:.2f} ({porcentagem:.1f}%)", color=cor, weight=ft.FontWeight.BOLD),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                                ),
+                                ft.ProgressBar(value=porcentagem / 100, color=cor, bgcolor=ft.Colors.GREY_800, height=8)
+                            ]
                         )
                     )
-
-                chart = ft.PieChart(
-                    sections=sections,
-                    sections_space=2,
-                    center_space_radius=30,
-                    height=180
-                )
-
-                pie_chart_ui.controls.append(ft.Text("📊 Distribuição de Gastos", weight=ft.FontWeight.BOLD, size=16))
-                pie_chart_ui.controls.append(chart)
-                pie_chart_ui.controls.append(ft.Column(legenda_controls))
 
             def carregar_registros(e=None):
                 lista_gastos_ui.controls.clear()
@@ -286,12 +267,12 @@ def main(page: ft.Page):
                 try:
                     valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
                     
+                    # Sem created_at para respeitar a estrutura atual da tabela no Supabase
                     payload = {
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
                         "categoria": dd_categoria.value,
-                        "tipo": tipo,
-                        "created_at": datetime.now().isoformat()
+                        "tipo": tipo
                     }
 
                     supabase.table("gastos").insert(payload).execute()
@@ -340,7 +321,7 @@ def main(page: ft.Page):
                 ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
-                pie_chart_ui,  # RESTAURAÇÃO DO GRÁFICO
+                grafico_ui,
                 msg_erro,
                 msg_sucesso,
                 ft.Row([txt_descricao]),
