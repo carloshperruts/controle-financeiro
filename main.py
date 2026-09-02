@@ -14,14 +14,11 @@ def main(page: ft.Page):
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
 
-    # Estado da aplicação
     usuario_atual = {"session": None}
 
-    # Componentes de Feedback
-    msg_erro = ft.Text("", color=ft.Colors.RED_400)
-    msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400)
+    msg_erro = ft.Text("", color="red400")
+    msg_sucesso = ft.Text("", color="green400")
 
-    # --- TELA DE LOGIN / CADASTRO ---
     email_input = ft.TextField(label="E-mail", width=300)
     senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300)
 
@@ -47,7 +44,7 @@ def main(page: ft.Page):
                 "email": email_input.value.strip(),
                 "password": senha_input.value
             })
-            msg_sucesso.value = "✔ Conta criada com sucesso! Verifique seu e-mail para confirmar."
+            msg_sucesso.value = "✔ Conta criada! Verifique seu e-mail."
             page.update()
         except Exception as ex:
             msg_erro.value = f"❌ Erro ao criar conta: {str(ex)}"
@@ -73,7 +70,7 @@ def main(page: ft.Page):
                     senha_input,
                     ft.Row(
                         [
-                            ft.ElevatedButton("Entrar", on_click=realizar_login, bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                            ft.ElevatedButton("Entrar", on_click=realizar_login, bgcolor="blue700", color="white"),
                             ft.OutlinedButton("Criar Conta", on_click=realizar_cadastro),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER
@@ -85,13 +82,10 @@ def main(page: ft.Page):
         )
         page.update()
 
-    # --- TELA PRINCIPAL DE FINANÇAS ---
     def carregar_tela_principal():
         page.clean()
-
         user_email = usuario_atual["session"].user.email if usuario_atual["session"] else ""
 
-        # Campos da Interface Principal
         txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
         txt_descricao = ft.TextField(label="Descrição", expand=True)
         txt_valor = ft.TextField(label="Valor (R$)", width=150)
@@ -109,7 +103,7 @@ def main(page: ft.Page):
             ]
         )
 
-        txt_busca = ft.TextField(label="Buscar", prefix_icon=ft.Icons.SEARCH, expand=True)
+        txt_busca = ft.TextField(label="Buscar", prefix_icon="search", expand=True)
         dd_filtro = ft.Dropdown(
             label="Filtrar Categoria",
             value="Todas",
@@ -124,10 +118,9 @@ def main(page: ft.Page):
             ]
         )
 
-        # Indicadores Financeiros
-        lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
-        lbl_gastos = ft.Text("Gastos: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
-        lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
+        lbl_receitas = ft.Text("Receitas: R$ 0.00", color="green400", weight=ft.FontWeight.BOLD)
+        lbl_gastos = ft.Text("Gastos: R$ 0.00", color="red400", weight=ft.FontWeight.BOLD)
+        lbl_saldo = ft.Text("Saldo: R$ 0.00", color="green400", size=18, weight=ft.FontWeight.BOLD)
 
         lista_gastos_ui = ft.Column()
 
@@ -145,7 +138,7 @@ def main(page: ft.Page):
             lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
             lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
             lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
-            lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
+            lbl_saldo.color = "green400" if saldo >= 0 else "red400"
 
         def carregar_registros(e=None):
             lista_gastos_ui.controls.clear()
@@ -154,7 +147,6 @@ def main(page: ft.Page):
                 res = supabase.table("gastos").select("*").order("id", desc=True).execute()
                 registros = res.data or []
 
-                # Aplicação de filtros
                 termo_busca = txt_busca.value.lower() if txt_busca.value else ""
                 cat_filtro = dd_filtro.value
 
@@ -170,13 +162,12 @@ def main(page: ft.Page):
                     item_id = item["id"]
                     tipo = item.get("tipo", "Gasto")
                     valor = float(item.get("valor", 0))
-                    cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
+                    cor_valor = "green400" if tipo == "Receita" else "red400"
                     sinal = "+" if tipo == "Receita" else "-"
 
-                    # Botão de exclusão com ícone explícito (corrige o erro do IconButton)
                     btn_deletar = ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
-                        icon_color=ft.Colors.RED_400,
+                        icon="delete_outline",
+                        icon_color="red400",
                         tooltip="Excluir",
                         on_click=lambda e, i=item_id: deletar_registro(i)
                     )
@@ -197,7 +188,7 @@ def main(page: ft.Page):
                         ),
                         padding=10,
                         border_radius=8,
-                        bgcolor=ft.Colors.GREY_900
+                        bgcolor="grey900"
                     )
                     lista_gastos_ui.controls.append(card_item)
 
@@ -247,29 +238,28 @@ def main(page: ft.Page):
         txt_busca.on_change = carregar_registros
         dd_filtro.on_change = carregar_registros
 
-        # --- BOTÕES DE AÇÃO COM AS CORES OFICIAIS ---
+        # Botões com as cores exatas desejadas (GREEN_700 e RED_700)
         btn_receita = ft.ElevatedButton(
             text="+ Receita",
-            bgcolor=ft.Colors.GREEN_700,
-            color=ft.Colors.WHITE,
+            bgcolor="green700",
+            color="white",
             on_click=lambda e: salvar_transacao("Receita"),
             expand=True
         )
 
         btn_gasto = ft.ElevatedButton(
             text="- Gasto",
-            bgcolor=ft.Colors.RED_700,
-            color=ft.Colors.WHITE,
+            bgcolor="red700",
+            color="white",
             on_click=lambda e: salvar_transacao("Gasto"),
             expand=True
         )
 
-        # Montagem do Layout Principal
         page.add(
             ft.Row(
                 [
                     ft.Text(f"👤 {user_email}", weight=ft.FontWeight.BOLD),
-                    ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
+                    ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color="red400"))
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
             ),
@@ -287,7 +277,6 @@ def main(page: ft.Page):
 
         carregar_registros()
 
-    # Inicialização da aplicação
     carregar_tela_login()
 
 ft.app(target=main)
