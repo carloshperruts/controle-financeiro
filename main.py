@@ -238,7 +238,6 @@ def main(page: ft.Page):
             txt_busca.on_change = carregar_registros
             dd_filtro.on_change = carregar_registros
 
-            # ALTERAÇÃO CIRÚRGICA: Uso do parâmetro 'content' compativel com a versao do Flet
             btn_receita = ft.ElevatedButton(
                 content=ft.Text("+ Receita", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.GREEN_700,
@@ -263,7 +262,8 @@ def main(page: ft.Page):
                 ),
                 ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Container(content=lbl_saldo, alignment=ft.alignment.center),
+                # ALTERAÇÃO CIRÚRGICA: ft.alignment.CENTER em maiúsculas
+                ft.Container(content=lbl_saldo, alignment=ft.alignment.CENTER),
                 msg_erro,
                 msg_sucesso,
                 ft.Row([txt_descricao]),
