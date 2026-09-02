@@ -1,337 +1,293 @@
-import os
-import re
-from datetime import datetime
 import flet as ft
 from supabase import create_client, Client
+import os
 
-# Configuração do Supabase
+# Configurações do Supabase
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-CATEGORIAS = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Trabalho", "Outros"]
-
-def limpar_e_converter_numero(texto):
-    texto_limpo = re.sub(r'[^\d.,]', '', texto)
-    if not texto_limpo:
-        raise ValueError("Nenhum número encontrado")
-
-    if '.' in texto_limpo and ',' in texto_limpo:
-        pos_ponto = texto_limpo.rfind('.')
-        pos_virgula = texto_limpo.rfind(',')
-        if pos_virgula > pos_ponto:
-            texto_limpo = texto_limpo.replace('.', '').replace(',', '.')
-        else:
-            texto_limpo = texto_limpo.replace(',', '')
-    elif ',' in texto_limpo:
-        texto_limpo = texto_limpo.replace(',', '.')
-    elif texto_limpo.count('.') > 1:
-        partes = texto_limpo.split('.')
-        if len(partes[-1]) == 2:
-            texto_limpo = "".join(partes[:-1]) + "." + partes[-1]
-        else:
-            texto_limpo = "".join(partes)
-
-    return float(texto_limpo)
 
 def main(page: ft.Page):
-    page.title = "Controle Financeiro Pessoal"
+    page.title = "Controle Financeiro"
     page.theme_mode = ft.ThemeMode.DARK
-    page.window_width = 450
-    page.window_height = 800
+    page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
 
-    usuario_atual = None
-    dados = {"renda": 0.0, "gastos": []}
+    # Estado da aplicação
+    usuario_atual = {"session": None}
 
-    # Campos de Entrada
-    entry_email = ft.TextField(
-        label="E-mail", 
-        hint_text="seuemail@exemplo.com", 
-        width=320
-    )
-    entry_senha = ft.TextField(
-        label="Senha", 
-        password=True, 
-        can_reveal_password=True, 
-        width=320
-    )
-    
-    lbl_auth_aviso = ft.Text(value="", size=14, weight=ft.FontWeight.BOLD)
+    # Componentes de Feedback
+    msg_erro = ft.Text("", color=ft.Colors.RED_400)
+    msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400)
 
-    def mostrar_aviso_auth(texto, cor="red"):
-        lbl_auth_aviso.value = texto
-        lbl_auth_aviso.color = cor
-        page.update()
+    # --- TELA DE LOGIN / CADASTRO ---
+    email_input = ft.TextField(label="E-mail", width=300)
+    senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300)
 
-    # --- FUNÇÕES DE AUTENTICAÇÃO ---
-
-    def fazer_login(e):
-        nonlocal usuario_atual
-        email = entry_email.value.strip() if entry_email.value else ""
-        senha = entry_senha.value.strip() if entry_senha.value else ""
-
-        if not email or not senha:
-            mostrar_aviso_auth("⚠️ Digite e-mail e senha!")
-            return
-
+    def realizar_login(e):
+        msg_erro.value = ""
+        msg_sucesso.value = ""
         try:
-            res = supabase.auth.sign_in_with_password({"email": email, "password": senha})
-            usuario_atual = res.user
-            carregar_dados_supabase()
-            carregar_tela_financeira()
+            res = supabase.auth.sign_in_with_password({
+                "email": email_input.value.strip(),
+                "password": senha_input.value
+            })
+            usuario_atual["session"] = res.session
+            carregar_tela_principal()
+        except Exception as ex:
+            msg_erro.value = f"❌ Usuário ou senha incorretos! ({str(ex)})"
+            page.update()
+
+    def realizar_cadastro(e):
+        msg_erro.value = ""
+        msg_sucesso.value = ""
+        try:
+            res = supabase.auth.sign_up({
+                "email": email_input.value.strip(),
+                "password": senha_input.value
+            })
+            msg_sucesso.value = "✔ Conta criada com sucesso! Verifique seu e-mail para confirmar."
+            page.update()
+        except Exception as ex:
+            msg_erro.value = f"❌ Erro ao criar conta: {str(ex)}"
+            page.update()
+
+    def logout(e):
+        try:
+            supabase.auth.sign_out()
         except Exception:
-            mostrar_aviso_auth("❌ E-mail ou senha incorretos.")
-
-    def criar_conta(e):
-        email = entry_email.value.strip() if entry_email.value else ""
-        senha = entry_senha.value.strip() if entry_senha.value else ""
-
-        if not email or not senha:
-            mostrar_aviso_auth("⚠️ Digite e-mail e crie uma senha!")
-            return
-
-        if len(senha) < 6:
-            mostrar_aviso_auth("⚠️ A senha precisa ter 6+ caracteres!")
-            return
-
-        try:
-            supabase.auth.sign_up({"email": email, "password": senha})
-            mostrar_aviso_auth("✅ Conta criada! Verifique o e-mail.", "green")
-        except Exception as err:
-            mostrar_aviso_auth(f"❌ Erro ao cadastrar: {str(err)}")
-
-    def recuperar_senha(e):
-        email = entry_email.value.strip() if entry_email.value else ""
-        if not email:
-            mostrar_aviso_auth("⚠️ Preencha o e-mail acima primeiro!")
-            return
-
-        try:
-            supabase.auth.reset_password_for_email(email)
-            mostrar_aviso_auth("📧 E-mail de redefinição enviado!", "green")
-        except Exception as err:
-            mostrar_aviso_auth(f"❌ Erro ao solicitar: {str(err)}")
+            pass
+        usuario_atual["session"] = None
+        carregar_tela_login()
 
     def carregar_tela_login():
-        page.controls.clear()
-        lbl_auth_aviso.value = ""
-
+        page.clean()
         page.add(
-            ft.Column([
-                ft.Text("🔑 Acesso ao Sistema", size=22, weight=ft.FontWeight.BOLD),
-                lbl_auth_aviso,
-                entry_email,
-                entry_senha,
-                ft.Container(height=10),
-                ft.ElevatedButton(
-                    "Entrar", 
-                    on_click=fazer_login, 
-                    width=320
-                ),
-                ft.OutlinedButton(
-                    "Criar Conta com este E-mail", 
-                    on_click=criar_conta, 
-                    width=320
-                ),
-                ft.TextButton(
-                    "Esqueceu a senha?", 
-                    on_click=recuperar_senha
-                )
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ft.Column(
+                [
+                    ft.Text("🔐 Acesso ao Sistema", size=24, weight=ft.FontWeight.BOLD),
+                    msg_erro,
+                    msg_sucesso,
+                    email_input,
+                    senha_input,
+                    ft.Row(
+                        [
+                            ft.ElevatedButton("Entrar", on_click=realizar_login, bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                            ft.OutlinedButton("Criar Conta", on_click=realizar_cadastro),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER
+                    )
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
         )
         page.update()
 
-    # --- BANCO DE DADOS (SUPABASE) ---
+    # --- TELA PRINCIPAL DE FINANÇAS ---
+    def carregar_tela_principal():
+        page.clean()
 
-    def carregar_dados_supabase():
-        nonlocal dados
-        try:
-            res = supabase.table("gastos").select("*").execute()
-            dados["gastos"] = res.data
-        except Exception as err:
-            print(f"Erro ao carregar dados: {err}")
-            dados["gastos"] = []
+        user_email = usuario_atual["session"].user.email if usuario_atual["session"] else ""
 
-    # --- TELA FINANCEIRA ---
-
-    def carregar_tela_financeira():
-        page.controls.clear()
-
-        lbl_boas_vindas = ft.Text(value=f"👤 {usuario_atual.email}", size=13, weight=ft.FontWeight.BOLD)
-        lbl_total_gasto = ft.Text(value="Gastos: R$ 0.00", size=14, color="red", weight=ft.FontWeight.BOLD)
-        lbl_total_receita = ft.Text(value="Receitas: R$ 0.00", size=14, color="green", weight=ft.FontWeight.BOLD)
-        lbl_saldo = ft.Text(value="Saldo: R$ 0.00", size=16, weight=ft.FontWeight.BOLD)
-        lbl_aviso = ft.Text(value="", size=14, weight=ft.FontWeight.BOLD)
-
-        entry_renda = ft.TextField(label="Renda Base (R$)", value=f"{dados['renda']:.2f}", width=180)
-        entry_desc = ft.TextField(label="Descrição", expand=True)
-        entry_valor = ft.TextField(label="Valor (R$)", width=130)
-
-        combo_cat = ft.Dropdown(
+        # Campos da Interface Principal
+        txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
+        txt_descricao = ft.TextField(label="Descrição", expand=True)
+        txt_valor = ft.TextField(label="Valor (R$)", width=150)
+        
+        dd_categoria = ft.Dropdown(
             label="Categoria",
-            options=[ft.dropdown.Option(c) for c in CATEGORIAS],
-            value="Alimentação",
-            width=160
+            value="Outros",
+            width=150,
+            options=[
+                ft.dropdown.Option("Alimentação"),
+                ft.dropdown.Option("Moradia"),
+                ft.dropdown.Option("Transporte"),
+                ft.dropdown.Option("Lazer"),
+                ft.dropdown.Option("Outros"),
+            ]
         )
 
-        entry_busca = ft.TextField(label="🔎 Buscar", expand=True)
-        combo_filtro_cat = ft.Dropdown(
+        txt_busca = ft.TextField(label="Buscar", prefix_icon=ft.Icons.SEARCH, expand=True)
+        dd_filtro = ft.Dropdown(
             label="Filtrar Categoria",
-            options=[ft.dropdown.Option("Todas")] + [ft.dropdown.Option(c) for c in CATEGORIAS],
             value="Todas",
-            width=160
+            width=150,
+            options=[
+                ft.dropdown.Option("Todas"),
+                ft.dropdown.Option("Alimentação"),
+                ft.dropdown.Option("Moradia"),
+                ft.dropdown.Option("Transporte"),
+                ft.dropdown.Option("Lazer"),
+                ft.dropdown.Option("Outros"),
+            ]
         )
 
-        lista_gastos_vview = ft.Column(scroll=ft.ScrollMode.AUTO, height=250)
+        # Indicadores Financeiros
+        lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
+        lbl_gastos = ft.Text("Gastos: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
+        lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
-        def mostrar_mensagem(texto, cor="orange"):
-            lbl_aviso.value = texto
-            lbl_aviso.color = cor
-            page.update()
+        lista_gastos_ui = ft.Column()
 
-        def atualizar_tela():
-            total_gastos = sum(g["valor"] for g in dados["gastos"] if g.get("tipo") == "gasto")
-            total_receitas = sum(g["valor"] for g in dados["gastos"] if g.get("tipo") == "receita")
-            saldo = dados["renda"] + total_receitas - total_gastos
-
-            lbl_total_gasto.value = f"Gastos: R$ {total_gastos:.2f}"
-            lbl_total_receita.value = f"Receitas: R$ {total_receitas:.2f}"
-            lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
-            lbl_saldo.color = "red" if saldo < 0 else "green"
-
-            atualizar_tabela()
-            page.update()
-
-        def atualizar_tabela():
-            lista_gastos_vview.controls.clear()
-            termo = entry_busca.value.lower().strip() if entry_busca.value else ""
-            cat_filtro = combo_filtro_cat.value
-
-            for item in dados["gastos"]:
-                cat = item.get("categoria", "Outros")
-                desc = item["descricao"]
-                tipo = item.get("tipo", "gasto")
-                data_hora = item.get("data_hora", "")
-
-                if (cat_filtro == "Todas" or cat == cat_filtro) and (termo in desc.lower()):
-                    def criar_remover_handler(item_alvo):
-                        return lambda e: remover_transacao(item_alvo)
-
-                    cor_valor = "green" if tipo == "receita" else "red"
-                    sinal = "+" if tipo == "receita" else "-"
-
-                    card = ft.Card(
-                        content=ft.Container(
-                            padding=10,
-                            content=ft.Row([
-                                ft.Column([
-                                    ft.Text(desc, weight=ft.FontWeight.BOLD, size=15),
-                                    ft.Text(f"{cat} • {sinal}R$ {item['valor']:.2f}", color=cor_valor, size=13),
-                                    ft.Text(f"📅 {data_hora}", size=11, color="grey"),
-                                ], expand=True),
-                                ft.IconButton(
-                                    icon="delete",
-                                    icon_color="red",
-                                    tooltip="Remover",
-                                    on_click=criar_remover_handler(item)
-                                )
-                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-                        )
-                    )
-                    lista_gastos_vview.controls.append(card)
-
-            page.update()
-
-        def atualizar_renda(e):
+        def calcular_totais(registros):
+            tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
+            tot_gasto = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Gasto")
+            
             try:
-                val = limpar_e_converter_numero(entry_renda.value)
-                dados["renda"] = val
-                atualizar_tela()
-                mostrar_mensagem("✅ Renda atualizada!", "green")
+                renda_base = float(txt_renda_base.value.replace(".", "").replace(",", "."))
             except ValueError:
-                mostrar_mensagem("⚠️ Erro: Valor de renda inválido.", "red")
+                renda_base = 0.0
 
-        def adicionar_transacao(tipo):
-            desc = entry_desc.value.strip() if entry_desc.value else ""
-            valor_raw = entry_valor.value.strip() if entry_valor.value else ""
-            cat = combo_cat.value
+            saldo = renda_base + tot_receita - tot_gasto
 
-            if not desc or not valor_raw:
-                mostrar_mensagem("⚠️ Preencha descrição e valor!", "red")
+            lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
+            lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
+            lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
+            lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
+
+        def carregar_registros(e=None):
+            lista_gastos_ui.controls.clear()
+            msg_erro.value = ""
+            try:
+                res = supabase.table("gastos").select("*").order("id", desc=True).execute()
+                registros = res.data or []
+
+                # Aplicação de filtros
+                termo_busca = txt_busca.value.lower() if txt_busca.value else ""
+                cat_filtro = dd_filtro.value
+
+                for item in registros:
+                    desc = str(item.get("descricao", ""))
+                    cat = str(item.get("categoria", ""))
+
+                    if termo_busca and termo_busca not in desc.lower():
+                        continue
+                    if cat_filtro != "Todas" and cat != cat_filtro:
+                        continue
+
+                    item_id = item["id"]
+                    tipo = item.get("tipo", "Gasto")
+                    valor = float(item.get("valor", 0))
+                    cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
+                    sinal = "+" if tipo == "Receita" else "-"
+
+                    # Botão de exclusão com ícone explícito (corrige o erro do IconButton)
+                    btn_deletar = ft.IconButton(
+                        icon=ft.Icons.DELETE_OUTLINE,
+                        icon_color=ft.Colors.RED_400,
+                        tooltip="Excluir",
+                        on_click=lambda e, i=item_id: deletar_registro(i)
+                    )
+
+                    card_item = ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Column(
+                                    [
+                                        ft.Text(desc, weight=ft.FontWeight.BOLD, size=16),
+                                        ft.Text(f"{cat} • {sinal}R$ {valor:.2f}", color=cor_valor),
+                                    ],
+                                    expand=True
+                                ),
+                                btn_deletar
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        ),
+                        padding=10,
+                        border_radius=8,
+                        bgcolor=ft.Colors.GREY_900
+                    )
+                    lista_gastos_ui.controls.append(card_item)
+
+                calcular_totais(registros)
+            except Exception as ex:
+                msg_erro.value = f"Erro ao carregar dados: {str(ex)}"
+            
+            page.update()
+
+        def salvar_transacao(tipo):
+            msg_erro.value = ""
+            msg_sucesso.value = ""
+            
+            if not txt_descricao.value or not txt_valor.value:
+                msg_erro.value = "Preencha a descrição e o valor!"
+                page.update()
                 return
 
             try:
-                valor = limpar_e_converter_numero(valor_raw)
-                if valor <= 0:
-                    mostrar_mensagem("⚠️ O valor precisa ser maior que zero!", "red")
-                    return
-
-                agora = datetime.now().strftime("%d/%m/%Y às %H:%M")
-                novo_item = {
-                    "user_id": usuario_atual.id,
-                    "descricao": desc,
-                    "valor": valor,
-                    "categoria": cat,
-                    "tipo": tipo,
-                    "data_hora": agora
+                valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
+                
+                payload = {
+                    "descricao": txt_descricao.value.strip(),
+                    "valor": valor_num,
+                    "categoria": dd_categoria.value,
+                    "tipo": tipo
                 }
 
-                res = supabase.table("gastos").insert(novo_item).execute()
-                if res.data:
-                    dados["gastos"].append(res.data[0])
+                supabase.table("gastos").insert(payload).execute()
+                
+                txt_descricao.value = ""
+                txt_valor.value = ""
+                msg_sucesso.value = f"✔ {tipo} adicionado(a)!"
+                carregar_registros()
+            except Exception as ex:
+                msg_erro.value = f"Erro ao salvar: {str(ex)}"
+                page.update()
 
-                entry_desc.value = ""
-                entry_valor.value = ""
-                atualizar_tela()
-                mostrar_mensagem(f"✅ {'Receita' if tipo == 'receita' else 'Gasto'} adicionado!", "green")
-            except Exception as err:
-                mostrar_mensagem(f"❌ Erro ao salvar: {str(err)}", "red")
-
-        def remover_transacao(item):
+        def deletar_registro(item_id):
             try:
-                supabase.table("gastos").delete().eq("id", item["id"]).execute()
-                dados["gastos"].remove(item)
-                atualizar_tela()
-                mostrar_mensagem("Item removido.", "orange")
-            except Exception as err:
-                mostrar_mensagem(f"❌ Erro ao remover: {str(err)}", "red")
+                supabase.table("gastos").delete().eq("id", item_id).execute()
+                carregar_registros()
+            except Exception as ex:
+                msg_erro.value = f"Erro ao excluir: {str(ex)}"
+                page.update()
 
-        def sair_conta(e):
-            supabase.auth.sign_out()
-            carregar_tela_login()
+        txt_busca.on_change = carregar_registros
+        dd_filtro.on_change = carregar_registros
 
-        entry_busca.on_change = lambda e: atualizar_tabela()
-        combo_filtro_cat.on_change = lambda e: atualizar_tabela()
-
-        page.add(
-            ft.Container(
-                padding=10,
-                content=ft.Column([
-                    ft.Row([lbl_boas_vindas, ft.TextButton("🚪 Sair", on_click=sair_conta)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Row([entry_renda, ft.ElevatedButton("Atualizar", on_click=atualizar_renda)]),
-                    ft.Row([lbl_total_receita, lbl_total_gasto], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(),
-                    ft.Row([lbl_aviso], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Row([entry_desc]),
-                    ft.Row([entry_valor, combo_cat]),
-                    ft.Row([
-                        ft.ElevatedButton("➕ Receita", on_click=lambda e: adicionar_transacao("receita"), expand=True),
-                        ft.ElevatedButton("➖ Gasto", on_click=lambda e: adicionar_transacao("gasto"), expand=True),
-                    ]),
-                    ft.Divider(),
-                    ft.Row([entry_busca, combo_filtro_cat]),
-                    ft.Divider(),
-                    lista_gastos_vview,
-                ])
-            )
+        # --- BOTÕES DE AÇÃO COM AS CORES OFICIAIS ---
+        btn_receita = ft.ElevatedButton(
+            text="+ Receita",
+            bgcolor=ft.Colors.GREEN_700,
+            color=ft.Colors.WHITE,
+            on_click=lambda e: salvar_transacao("Receita"),
+            expand=True
         )
-        atualizar_tela()
 
+        btn_gasto = ft.ElevatedButton(
+            text="- Gasto",
+            bgcolor=ft.Colors.RED_700,
+            color=ft.Colors.WHITE,
+            on_click=lambda e: salvar_transacao("Gasto"),
+            expand=True
+        )
+
+        # Montagem do Layout Principal
+        page.add(
+            ft.Row(
+                [
+                    ft.Text(f"👤 {user_email}", weight=ft.FontWeight.BOLD),
+                    ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            ),
+            ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
+            ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Container(content=lbl_saldo, alignment=ft.alignment.center),
+            msg_erro,
+            msg_sucesso,
+            ft.Row([txt_descricao]),
+            ft.Row([txt_valor, dd_categoria]),
+            ft.Row([btn_receita, btn_gasto]),
+            ft.Row([txt_busca, dd_filtro]),
+            lista_gastos_ui
+        )
+
+        carregar_registros()
+
+    # Inicialização da aplicação
     carregar_tela_login()
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8550))
-    host = "0.0.0.0" if "PORT" in os.environ else "localhost"
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host=host, port=port)
+ft.app(target=main)
