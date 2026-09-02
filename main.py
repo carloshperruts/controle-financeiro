@@ -262,8 +262,8 @@ def main(page: ft.Page):
                 ),
                 ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                # ALTERAÇÃO CIRÚRGICA: ft.alignment.CENTER em maiúsculas
-                ft.Container(content=lbl_saldo, alignment=ft.alignment.CENTER),
+                # ALTERAÇÃO CIRÚRGICA: Uso de ft.Row para centralização garantida
+                ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                 msg_erro,
                 msg_sucesso,
                 ft.Row([txt_descricao]),
