@@ -238,19 +238,17 @@ def main(page: ft.Page):
             txt_busca.on_change = carregar_registros
             dd_filtro.on_change = carregar_registros
 
-            # Botões nas cores oficiais da aplicação
+            # ALTERAÇÃO CIRÚRGICA: Uso do parâmetro 'content' compativel com a versao do Flet
             btn_receita = ft.ElevatedButton(
-                text="+ Receita",
+                content=ft.Text("+ Receita", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.GREEN_700,
-                color=ft.Colors.WHITE,
                 on_click=lambda e: salvar_transacao("Receita"),
                 expand=True
             )
 
             btn_gasto = ft.ElevatedButton(
-                text="- Gasto",
+                content=ft.Text("- Gasto", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.RED_700,
-                color=ft.Colors.WHITE,
                 on_click=lambda e: salvar_transacao("Gasto"),
                 expand=True
             )
