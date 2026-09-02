@@ -32,7 +32,7 @@ def main(page: ft.Page):
             usuario_atual["session"] = res.session
             carregar_tela_principal()
         except Exception as ex:
-            msg_erro.value = f"❌ Usuário ou senha incorretos!"
+            msg_erro.value = f"❌ Erro ao entrar: {str(ex)}"
             page.update()
 
     def realizar_cadastro(e):
@@ -82,199 +82,203 @@ def main(page: ft.Page):
         page.update()
 
     def carregar_tela_principal():
-        page.clean()
-        user_email = usuario_atual["session"].user.email if usuario_atual["session"] else ""
+        try:
+            page.clean()
+            user_email = usuario_atual["session"].user.email if usuario_atual["session"] else ""
 
-        txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
-        txt_descricao = ft.TextField(label="Descrição", expand=True)
-        txt_valor = ft.TextField(label="Valor (R$)", width=150)
-        
-        dd_categoria = ft.Dropdown(
-            label="Categoria",
-            value="Outros",
-            width=150,
-            options=[
-                ft.dropdown.Option("Alimentação"),
-                ft.dropdown.Option("Moradia"),
-                ft.dropdown.Option("Transporte"),
-                ft.dropdown.Option("Lazer"),
-                ft.dropdown.Option("Outros"),
-            ]
-        )
-
-        txt_busca = ft.TextField(label="Buscar", prefix_icon=ft.Icons.SEARCH, expand=True)
-        dd_filtro = ft.Dropdown(
-            label="Filtrar Categoria",
-            value="Todas",
-            width=150,
-            options=[
-                ft.dropdown.Option("Todas"),
-                ft.dropdown.Option("Alimentação"),
-                ft.dropdown.Option("Moradia"),
-                ft.dropdown.Option("Transporte"),
-                ft.dropdown.Option("Lazer"),
-                ft.dropdown.Option("Outros"),
-            ]
-        )
-
-        lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
-        lbl_gastos = ft.Text("Gastos: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
-        lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
-
-        lista_gastos_ui = ft.Column()
-
-        def calcular_totais(registros):
-            tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
-            tot_gasto = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Gasto")
+            txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
+            txt_descricao = ft.TextField(label="Descrição", expand=True)
+            txt_valor = ft.TextField(label="Valor (R$)", width=150)
             
-            try:
-                renda_base = float(txt_renda_base.value.replace(".", "").replace(",", "."))
-            except ValueError:
-                renda_base = 0.0
+            dd_categoria = ft.Dropdown(
+                label="Categoria",
+                value="Outros",
+                width=150,
+                options=[
+                    ft.dropdown.Option("Alimentação"),
+                    ft.dropdown.Option("Moradia"),
+                    ft.dropdown.Option("Transporte"),
+                    ft.dropdown.Option("Lazer"),
+                    ft.dropdown.Option("Outros"),
+                ]
+            )
 
-            saldo = renda_base + tot_receita - tot_gasto
+            txt_busca = ft.TextField(label="Buscar", prefix_icon=ft.Icons.SEARCH, expand=True)
+            dd_filtro = ft.Dropdown(
+                label="Filtrar Categoria",
+                value="Todas",
+                width=150,
+                options=[
+                    ft.dropdown.Option("Todas"),
+                    ft.dropdown.Option("Alimentação"),
+                    ft.dropdown.Option("Moradia"),
+                    ft.dropdown.Option("Transporte"),
+                    ft.dropdown.Option("Lazer"),
+                    ft.dropdown.Option("Outros"),
+                ]
+            )
 
-            lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
-            lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
-            lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
-            lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
+            lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
+            lbl_gastos = ft.Text("Gastos: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
+            lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
-        def carregar_registros(e=None):
-            lista_gastos_ui.controls.clear()
-            msg_erro.value = ""
-            try:
-                res = supabase.table("gastos").select("*").order("id", desc=True).execute()
-                registros = res.data or []
+            lista_gastos_ui = ft.Column()
 
-                termo_busca = txt_busca.value.lower() if txt_busca.value else ""
-                cat_filtro = dd_filtro.value
+            def calcular_totais(registros):
+                tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
+                tot_gasto = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Gasto")
+                
+                try:
+                    renda_base = float(txt_renda_base.value.replace(".", "").replace(",", "."))
+                except ValueError:
+                    renda_base = 0.0
 
-                for item in registros:
-                    desc = str(item.get("descricao", ""))
-                    cat = str(item.get("categoria", ""))
+                saldo = renda_base + tot_receita - tot_gasto
 
-                    if termo_busca and termo_busca not in desc.lower():
-                        continue
-                    if cat_filtro != "Todas" and cat != cat_filtro:
-                        continue
+                lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
+                lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
+                lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
+                lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
 
-                    item_id = item["id"]
-                    tipo = item.get("tipo", "Gasto")
-                    valor = float(item.get("valor", 0))
-                    cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
-                    sinal = "+" if tipo == "Receita" else "-"
+            def carregar_registros(e=None):
+                lista_gastos_ui.controls.clear()
+                msg_erro.value = ""
+                try:
+                    res = supabase.table("gastos").select("*").order("id", desc=True).execute()
+                    registros = res.data or []
 
-                    btn_deletar = ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
-                        icon_color=ft.Colors.RED_400,
-                        tooltip="Excluir",
-                        on_click=lambda e, i=item_id: deletar_registro(i)
-                    )
+                    termo_busca = txt_busca.value.lower() if txt_busca.value else ""
+                    cat_filtro = dd_filtro.value
 
-                    card_item = ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Column(
-                                    [
-                                        ft.Text(desc, weight=ft.FontWeight.BOLD, size=16),
-                                        ft.Text(f"{cat} • {sinal}R$ {valor:.2f}", color=cor_valor),
-                                    ],
-                                    expand=True
-                                ),
-                                btn_deletar
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                        ),
-                        padding=10,
-                        border_radius=8,
-                        bgcolor=ft.Colors.GREY_900
-                    )
-                    lista_gastos_ui.controls.append(card_item)
+                    for item in registros:
+                        desc = str(item.get("descricao", ""))
+                        cat = str(item.get("categoria", ""))
 
-                calcular_totais(registros)
-            except Exception as ex:
-                msg_erro.value = f"Erro ao carregar dados: {str(ex)}"
-            
+                        if termo_busca and termo_busca not in desc.lower():
+                            continue
+                        if cat_filtro != "Todas" and cat != cat_filtro:
+                            continue
+
+                        item_id = item["id"]
+                        tipo = item.get("tipo", "Gasto")
+                        valor = float(item.get("valor", 0))
+                        cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
+                        sinal = "+" if tipo == "Receita" else "-"
+
+                        btn_deletar = ft.IconButton(
+                            icon=ft.Icons.DELETE_OUTLINE,
+                            icon_color=ft.Colors.RED_400,
+                            tooltip="Excluir",
+                            on_click=lambda e, i=item_id: deletar_registro(i)
+                        )
+
+                        card_item = ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Column(
+                                        [
+                                            ft.Text(desc, weight=ft.FontWeight.BOLD, size=16),
+                                            ft.Text(f"{cat} • {sinal}R$ {valor:.2f}", color=cor_valor),
+                                        ],
+                                        expand=True
+                                    ),
+                                    btn_deletar
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                            ),
+                            padding=10,
+                            border_radius=8,
+                            bgcolor=ft.Colors.GREY_900
+                        )
+                        lista_gastos_ui.controls.append(card_item)
+
+                    calcular_totais(registros)
+                except Exception as ex:
+                    msg_erro.value = f"Erro ao carregar dados: {str(ex)}"
+                
+                page.update()
+
+            def salvar_transacao(tipo):
+                msg_erro.value = ""
+                msg_sucesso.value = ""
+                
+                if not txt_descricao.value or not txt_valor.value:
+                    msg_erro.value = "Preencha a descrição e o valor!"
+                    page.update()
+                    return
+
+                try:
+                    valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
+                    
+                    payload = {
+                        "descricao": txt_descricao.value.strip(),
+                        "valor": valor_num,
+                        "categoria": dd_categoria.value,
+                        "tipo": tipo
+                    }
+
+                    supabase.table("gastos").insert(payload).execute()
+                    
+                    txt_descricao.value = ""
+                    txt_valor.value = ""
+                    msg_sucesso.value = f"✔ {tipo} adicionado(a)!"
+                    carregar_registros()
+                except Exception as ex:
+                    msg_erro.value = f"Erro ao salvar: {str(ex)}"
+                    page.update()
+
+            def deletar_registro(item_id):
+                try:
+                    supabase.table("gastos").delete().eq("id", item_id).execute()
+                    carregar_registros()
+                except Exception as ex:
+                    msg_erro.value = f"Erro ao excluir: {str(ex)}"
+                    page.update()
+
+            txt_busca.on_change = carregar_registros
+            dd_filtro.on_change = carregar_registros
+
+            # Botões nas cores oficiais da aplicação
+            btn_receita = ft.ElevatedButton(
+                text="+ Receita",
+                bgcolor=ft.Colors.GREEN_700,
+                color=ft.Colors.WHITE,
+                on_click=lambda e: salvar_transacao("Receita"),
+                expand=True
+            )
+
+            btn_gasto = ft.ElevatedButton(
+                text="- Gasto",
+                bgcolor=ft.Colors.RED_700,
+                color=ft.Colors.WHITE,
+                on_click=lambda e: salvar_transacao("Gasto"),
+                expand=True
+            )
+
+            page.add(
+                ft.Row(
+                    [
+                        ft.Text(f"👤 {user_email}", weight=ft.FontWeight.BOLD),
+                        ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                ),
+                ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
+                ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Container(content=lbl_saldo, alignment=ft.alignment.center),
+                msg_erro,
+                msg_sucesso,
+                ft.Row([txt_descricao]),
+                ft.Row([txt_valor, dd_categoria]),
+                ft.Row([btn_receita, btn_gasto]),
+                ft.Row([txt_busca, dd_filtro]),
+                lista_gastos_ui
+            )
+
+            carregar_registros()
+        except Exception as main_err:
+            page.add(ft.Text(f"⚠️ Erro ao carregar tela principal: {str(main_err)}", color=ft.Colors.RED_400))
             page.update()
-
-        def salvar_transacao(tipo):
-            msg_erro.value = ""
-            msg_sucesso.value = ""
-            
-            if not txt_descricao.value or not txt_valor.value:
-                msg_erro.value = "Preencha a descrição e o valor!"
-                page.update()
-                return
-
-            try:
-                valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
-                
-                payload = {
-                    "descricao": txt_descricao.value.strip(),
-                    "valor": valor_num,
-                    "categoria": dd_categoria.value,
-                    "tipo": tipo
-                }
-
-                supabase.table("gastos").insert(payload).execute()
-                
-                txt_descricao.value = ""
-                txt_valor.value = ""
-                msg_sucesso.value = f"✔ {tipo} adicionado(a)!"
-                carregar_registros()
-            except Exception as ex:
-                msg_erro.value = f"Erro ao salvar: {str(ex)}"
-                page.update()
-
-        def deletar_registro(item_id):
-            try:
-                supabase.table("gastos").delete().eq("id", item_id).execute()
-                carregar_registros()
-            except Exception as ex:
-                msg_erro.value = f"Erro ao excluir: {str(ex)}"
-                page.update()
-
-        txt_busca.on_change = carregar_registros
-        dd_filtro.on_change = carregar_registros
-
-        # Botões mantendo GREEN_700 e RED_700 nativos do Flet
-        btn_receita = ft.ElevatedButton(
-            text="+ Receita",
-            bgcolor=ft.Colors.GREEN_700,
-            color=ft.Colors.WHITE,
-            on_click=lambda e: salvar_transacao("Receita"),
-            expand=True
-        )
-
-        btn_gasto = ft.ElevatedButton(
-            text="- Gasto",
-            bgcolor=ft.Colors.RED_700,
-            color=ft.Colors.WHITE,
-            on_click=lambda e: salvar_transacao("Gasto"),
-            expand=True
-        )
-
-        page.add(
-            ft.Row(
-                [
-                    ft.Text(f"👤 {user_email}", weight=ft.FontWeight.BOLD),
-                    ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-            ),
-            ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
-            ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ft.Container(content=lbl_saldo, alignment=ft.alignment.center),
-            msg_erro,
-            msg_sucesso,
-            ft.Row([txt_descricao]),
-            ft.Row([txt_valor, dd_categoria]),
-            ft.Row([btn_receita, btn_gasto]),
-            ft.Row([txt_busca, dd_filtro]),
-            lista_gastos_ui
-        )
-
-        carregar_registros()
 
     carregar_tela_login()
 
