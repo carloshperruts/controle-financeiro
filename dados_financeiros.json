@@ -1,0 +1,25 @@
+{
+    "renda": 1600.0,
+    "gastos": [
+        {
+            "descricao": "cartao nubank",
+            "valor": 1878.65,
+            "categoria": "Outros"
+        },
+        {
+            "descricao": "internet giga mais",
+            "valor": 89.99,
+            "categoria": "Lazer"
+        },
+        {
+            "descricao": "internet claro",
+            "valor": 29.9,
+            "categoria": "Lazer"
+        },
+        {
+            "descricao": "cartao mercado pago",
+            "valor": 370.18,
+            "categoria": "Outros"
+        }
+    ]
+}
