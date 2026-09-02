@@ -124,6 +124,7 @@ def main(page: ft.Page):
             lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
             lista_gastos_ui = ft.Column()
+            pie_chart_ui = ft.Column(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
             def calcular_totais(registros):
                 tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
@@ -140,6 +141,69 @@ def main(page: ft.Page):
                 lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
                 lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
                 lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
+
+            def atualizar_grafico(registros):
+                pie_chart_ui.controls.clear()
+                
+                # Agrupa apenas gastos por categoria
+                gastos = [r for r in registros if r.get("tipo", "Gasto") == "Gasto"]
+                tot_gasto = sum(float(r["valor"]) for r in gastos)
+
+                if tot_gasto == 0:
+                    return
+
+                categorias = {}
+                for g in gastos:
+                    cat = g.get("categoria", "Outros")
+                    val = float(g.get("valor", 0))
+                    categorias[cat] = categorias.get(cat, 0.0) + val
+
+                cores = [
+                    ft.Colors.BLUE_400,
+                    ft.Colors.AMBER_400,
+                    ft.Colors.PURPLE_400,
+                    ft.Colors.TEAL_400,
+                    ft.Colors.ORANGE_400,
+                    ft.Colors.PINK_400
+                ]
+
+                sections = []
+                legenda_controls = []
+
+                for idx, (cat, val) in enumerate(categorias.items()):
+                    porcentagem = (val / tot_gasto) * 100
+                    cor = cores[idx % len(cores)]
+
+                    sections.append(
+                        ft.PieChartSection(
+                            val,
+                            title=f"{porcentagem:.1f}%",
+                            color=cor,
+                            radius=40,
+                            title_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+                        )
+                    )
+
+                    legenda_controls.append(
+                        ft.Row(
+                            [
+                                ft.Container(width=12, height=12, bgcolor=cor, border_radius=3),
+                                ft.Text(f"{cat}: R$ {val:.2f} ({porcentagem:.1f}%)", size=12)
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER
+                        )
+                    )
+
+                chart = ft.PieChart(
+                    sections=sections,
+                    sections_space=2,
+                    center_space_radius=30,
+                    height=180
+                )
+
+                pie_chart_ui.controls.append(ft.Text("📊 Distribuição de Gastos", weight=ft.FontWeight.BOLD, size=16))
+                pie_chart_ui.controls.append(chart)
+                pie_chart_ui.controls.append(ft.Column(legenda_controls))
 
             def carregar_registros(e=None):
                 lista_gastos_ui.controls.clear()
@@ -166,7 +230,6 @@ def main(page: ft.Page):
                         cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
                         sinal = "+" if tipo == "Receita" else "-"
 
-                        # TRATAMENTO DE DATA E HORA
                         raw_data = item.get("created_at") or item.get("data")
                         if raw_data:
                             try:
@@ -205,6 +268,7 @@ def main(page: ft.Page):
                         lista_gastos_ui.controls.append(card_item)
 
                     calcular_totais(registros)
+                    atualizar_grafico(registros)
                 except Exception as ex:
                     msg_erro.value = f"Erro ao carregar dados: {str(ex)}"
                 
@@ -276,6 +340,7 @@ def main(page: ft.Page):
                 ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
+                pie_chart_ui,  # RESTAURAÇÃO DO GRÁFICO
                 msg_erro,
                 msg_sucesso,
                 ft.Row([txt_descricao]),
