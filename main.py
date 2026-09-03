@@ -2,6 +2,8 @@ import flet as ft
 from supabase import create_client, Client
 import os
 from datetime import datetime
+import csv
+import io
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -17,14 +19,22 @@ def main(page: ft.Page):
     usuario_atual = {"session": None}
 
     msg_erro = ft.Text("", color=ft.Colors.RED_400)
-    msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400)
 
     email_input = ft.TextField(label="E-mail", width=300)
     senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300)
 
+    def mostrar_notificacao(texto, cor=ft.Colors.GREEN_600):
+        snack = ft.SnackBar(
+            content=ft.Text(texto, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            bgcolor=cor,
+            duration=3000
+        )
+        page.overlay.append(snack)
+        snack.open = True
+        page.update()
+
     def realizar_login(e):
         msg_erro.value = ""
-        msg_sucesso.value = ""
         try:
             res = supabase.auth.sign_in_with_password({
                 "email": email_input.value.strip(),
@@ -38,14 +48,12 @@ def main(page: ft.Page):
 
     def realizar_cadastro(e):
         msg_erro.value = ""
-        msg_sucesso.value = ""
         try:
             res = supabase.auth.sign_up({
                 "email": email_input.value.strip(),
                 "password": senha_input.value
             })
-            msg_sucesso.value = "✔ Conta criada! Verifique seu e-mail."
-            page.update()
+            mostrar_notificacao("✔ Conta criada! Verifique seu e-mail.")
         except Exception as ex:
             msg_erro.value = f"❌ Erro ao criar conta: {str(ex)}"
             page.update()
@@ -65,7 +73,6 @@ def main(page: ft.Page):
                 [
                     ft.Text("🔐 Acesso ao Sistema", size=24, weight=ft.FontWeight.BOLD),
                     msg_erro,
-                    msg_sucesso,
                     email_input,
                     senha_input,
                     ft.Row(
@@ -125,6 +132,9 @@ def main(page: ft.Page):
 
             lista_gastos_ui = ft.Column()
             grafico_ui = ft.Column()
+
+            # Guardará os registros locais para exportar no CSV
+            registros_cache = []
 
             def calcular_totais(registros):
                 tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
@@ -186,12 +196,41 @@ def main(page: ft.Page):
                         )
                     )
 
+            def exportar_csv(e):
+                if not registros_cache:
+                    mostrar_notificacao("Nenhum registro para exportar!", ft.Colors.AMBER_700)
+                    return
+
+                try:
+                    output = io.StringIO()
+                    writer = csv.writer(output)
+                    writer.writerow(["ID", "Descrição", "Valor", "Categoria", "Tipo", "Data"])
+
+                    for item in registros_cache:
+                        writer.writerow([
+                            item.get("id", ""),
+                            item.get("descricao", ""),
+                            item.get("valor", ""),
+                            item.get("categoria", ""),
+                            item.get("tipo", ""),
+                            item.get("created_at") or item.get("data") or ""
+                        ])
+
+                    # Faz o download via navegador usando JS/Blob do Flet Web
+                    csv_data = output.getvalue()
+                    page.launch_url(f"data:text/csv;charset=utf-8,{csv_data}")
+                    mostrar_notificacao("📥 Relatório CSV gerado com sucesso!")
+                except Exception as ex:
+                    mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
+
             def carregar_registros(e=None):
+                nonlocal registros_cache
                 lista_gastos_ui.controls.clear()
                 msg_erro.value = ""
                 try:
                     res = supabase.table("gastos").select("*").order("id", desc=True).execute()
                     registros = res.data or []
+                    registros_cache = registros
 
                     termo_busca = txt_busca.value.lower() if txt_busca.value else ""
                     cat_filtro = dd_filtro.value
@@ -257,17 +296,14 @@ def main(page: ft.Page):
 
             def salvar_transacao(tipo):
                 msg_erro.value = ""
-                msg_sucesso.value = ""
                 
                 if not txt_descricao.value or not txt_valor.value:
-                    msg_erro.value = "Preencha a descrição e o valor!"
-                    page.update()
+                    mostrar_notificacao("Preencha a descrição e o valor!", ft.Colors.RED_600)
                     return
 
                 try:
                     valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
                     
-                    # Sem created_at para respeitar a estrutura atual da tabela no Supabase
                     payload = {
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
@@ -279,19 +315,18 @@ def main(page: ft.Page):
                     
                     txt_descricao.value = ""
                     txt_valor.value = ""
-                    msg_sucesso.value = f"✔ {tipo} adicionado(a)!"
+                    mostrar_notificacao(f"✔ {tipo} salvo(a) com sucesso no banco!")
                     carregar_registros()
                 except Exception as ex:
-                    msg_erro.value = f"Erro ao salvar: {str(ex)}"
-                    page.update()
+                    mostrar_notificacao(f"Erro ao salvar: {str(ex)}", ft.Colors.RED_600)
 
             def deletar_registro(item_id):
                 try:
                     supabase.table("gastos").delete().eq("id", item_id).execute()
+                    mostrar_notificacao("🗑️ Registro excluído!")
                     carregar_registros()
                 except Exception as ex:
-                    msg_erro.value = f"Erro ao excluir: {str(ex)}"
-                    page.update()
+                    mostrar_notificacao(f"Erro ao excluir: {str(ex)}", ft.Colors.RED_600)
 
             txt_busca.on_change = carregar_registros
             dd_filtro.on_change = carregar_registros
@@ -310,6 +345,12 @@ def main(page: ft.Page):
                 expand=True
             )
 
+            btn_exportar = ft.OutlinedButton(
+                "📥 Exportar Relatório CSV",
+                on_click=exportar_csv,
+                icon=ft.Icons.DOWNLOAD
+            )
+
             page.add(
                 ft.Row(
                     [
@@ -318,12 +359,11 @@ def main(page: ft.Page):
                     ],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                 ),
-                ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
+                ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros), btn_exportar]),
                 ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                 grafico_ui,
                 msg_erro,
-                msg_sucesso,
                 ft.Row([txt_descricao]),
                 ft.Row([txt_valor, dd_categoria]),
                 ft.Row([btn_receita, btn_gasto]),
