@@ -133,7 +133,6 @@ def main(page: ft.Page):
             lista_gastos_ui = ft.Column()
             grafico_ui = ft.Column()
 
-            # Guardará os registros locais para exportar no CSV
             registros_cache = []
 
             def calcular_totais(registros):
@@ -216,10 +215,24 @@ def main(page: ft.Page):
                             item.get("created_at") or item.get("data") or ""
                         ])
 
-                    # Faz o download via navegador usando JS/Blob do Flet Web
                     csv_data = output.getvalue()
-                    page.launch_url(f"data:text/csv;charset=utf-8,{csv_data}")
-                    mostrar_notificacao("📥 Relatório CSV gerado com sucesso!")
+                    csv_escaped = csv_data.replace("`", "\\`").replace("${", "\\${")
+
+                    js_code = f"""
+                    (function() {{
+                        const csvContent = `{csv_escaped}`;
+                        const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", url);
+                        link.setAttribute("download", "relatorio_financeiro.csv");
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }})();
+                    """
+                    page.run_javascript(js_code)
+                    mostrar_notificacao("📥 Download do CSV iniciado!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
 
