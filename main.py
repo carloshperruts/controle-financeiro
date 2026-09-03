@@ -220,8 +220,7 @@ def main(page: ft.Page):
                                 item.get("created_at") or item.get("data") or ""
                             ])
 
-                    # Redireciona para o arquivo servido pela pasta assets
-                    page.launch_url("/relatorio_financeiro.csv", web_window_name="_blank")
+                    page.launch_url("/relatorio_financeiro.csv", web_popup_window_name="_blank")
                     mostrar_notificacao("📥 Download do CSV iniciado!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
@@ -381,5 +380,4 @@ def main(page: ft.Page):
 
     carregar_tela_login()
 
-# Configuração do assets_dir essencial para servir o CSV publicamente
 ft.app(target=main, assets_dir="assets")
