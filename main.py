@@ -15,7 +15,7 @@ def main(page: ft.Page):
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
 
-    # Garante que a pasta 'assets' exista no servidor
+    # Garante que a pasta 'assets' exista no servidor/computador
     if not os.path.exists("assets"):
         os.makedirs("assets")
 
@@ -30,7 +30,7 @@ def main(page: ft.Page):
         snack = ft.SnackBar(
             content=ft.Text(texto, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
             bgcolor=cor,
-            duration=3000
+            duration=4000
         )
         page.overlay.append(snack)
         snack.open = True
@@ -205,23 +205,27 @@ def main(page: ft.Page):
 
                 try:
                     caminho_arquivo = os.path.join("assets", "relatorio_financeiro.csv")
-                    
-                    with open(caminho_arquivo, mode="w", newline="", encoding="utf-8-sig") as file:
-                        writer = csv.writer(file, delimiter=";")
+
+                    with open(caminho_arquivo, mode="w", newline="", encoding="utf-8-sig") as f:
+                        writer = csv.writer(f, delimiter=";")
                         writer.writerow(["ID", "Descrição", "Valor", "Categoria", "Tipo", "Data"])
 
                         for item in registros_cache:
                             writer.writerow([
                                 item.get("id", ""),
                                 item.get("descricao", ""),
-                                item.get("valor", ""),
+                                str(item.get("valor", "")).replace(".", ","),
                                 item.get("categoria", ""),
                                 item.get("tipo", ""),
                                 item.get("created_at") or item.get("data") or ""
                             ])
 
-                    page.launch_url("/relatorio_financeiro.csv", web_popup_window_name="_blank")
-                    mostrar_notificacao("📥 Download do CSV iniciado!")
+                    try:
+                        page.launch_url("/assets/relatorio_financeiro.csv")
+                    except Exception:
+                        pass
+
+                    mostrar_notificacao(f"📥 Relatório salvo em: {os.path.abspath(caminho_arquivo)}")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
 
