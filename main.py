@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import csv
 import io
+import base64
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -15,10 +16,6 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
-
-    # FilePicker obrigatório para downloads no Flet Web
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
 
     usuario_atual = {"session": None}
 
@@ -220,17 +217,15 @@ def main(page: ft.Page):
                         ])
 
                     csv_text = output.getvalue()
-                    csv_bytes = csv_text.encode("utf-8-sig")
-
-                    # Usa o FilePicker com src_bytes para forçar o download no navegador
-                    file_picker.save_file(
-                        file_name="relatorio_financeiro.csv",
-                        allowed_extensions=["csv"],
-                        file_type=ft.FilePickerFileType.CUSTOM,
-                        src_bytes=csv_bytes
-                    )
-
-                    mostrar_notificacao("📥 Download do CSV gerado com sucesso!")
+                    
+                    # Converte para base64 com suporte a acentuação
+                    b64_bytes = base64.b64encode(csv_text.encode('utf-8-sig')).decode('utf-8')
+                    
+                    # Gera uma URL Data nativa que força o browser a baixar
+                    download_url = f"data:text/csv;charset=utf-8;base64,{b64_bytes}"
+                    page.launch_url(download_url)
+                    
+                    mostrar_notificacao("📥 Download do CSV iniciado!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
 
