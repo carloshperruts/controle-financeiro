@@ -2,24 +2,32 @@
     "renda": 1600.0,
     "gastos": [
         {
-            "descricao": "cartao nubank",
+            "descricao": "cartao do nubank",
             "valor": 1878.65,
-            "categoria": "Outros"
+            "categoria": "Outros",
+            "tipo": "gasto",
+            "data_hora": "02/09/2026 \u00e0s 17:42"
         },
         {
             "descricao": "internet giga mais",
             "valor": 89.99,
-            "categoria": "Lazer"
+            "categoria": "Outros",
+            "tipo": "gasto",
+            "data_hora": "02/09/2026 \u00e0s 17:43"
         },
         {
             "descricao": "internet claro",
             "valor": 29.9,
-            "categoria": "Lazer"
+            "categoria": "Outros",
+            "tipo": "gasto",
+            "data_hora": "02/09/2026 \u00e0s 17:43"
         },
         {
             "descricao": "cartao mercado pago",
             "valor": 370.18,
-            "categoria": "Outros"
+            "categoria": "Outros",
+            "tipo": "gasto",
+            "data_hora": "02/09/2026 \u00e0s 17:44"
         }
     ]
 }
