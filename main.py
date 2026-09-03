@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 import csv
 import io
-import base64
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -16,6 +15,10 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
+
+    # FilePicker obrigatório para downloads no Flet Web
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
 
     usuario_atual = {"session": None}
 
@@ -203,7 +206,7 @@ def main(page: ft.Page):
 
                 try:
                     output = io.StringIO()
-                    writer = csv.writer(output)
+                    writer = csv.writer(output, delimiter=';')
                     writer.writerow(["ID", "Descrição", "Valor", "Categoria", "Tipo", "Data"])
 
                     for item in registros_cache:
@@ -217,15 +220,17 @@ def main(page: ft.Page):
                         ])
 
                     csv_text = output.getvalue()
-                    
-                    # Converte para base64 para garantir o download seguro pelo navegador
-                    csv_b64 = base64.b64encode(csv_text.encode('utf-8')).decode('utf-8')
-                    
-                    # Usa o comando nativo page.launch_url com data URI Base64
-                    data_uri = f"data:text/csv;base64,{csv_b64}"
-                    page.launch_url(data_uri)
-                    
-                    mostrar_notificacao("📥 Download do CSV gerado!")
+                    csv_bytes = csv_text.encode("utf-8-sig")
+
+                    # Usa o FilePicker com src_bytes para forçar o download no navegador
+                    file_picker.save_file(
+                        file_name="relatorio_financeiro.csv",
+                        allowed_extensions=["csv"],
+                        file_type=ft.FilePickerFileType.CUSTOM,
+                        src_bytes=csv_bytes
+                    )
+
+                    mostrar_notificacao("📥 Download do CSV gerado com sucesso!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
 
