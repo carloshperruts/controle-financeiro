@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import csv
 import io
+import base64
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -215,24 +216,16 @@ def main(page: ft.Page):
                             item.get("created_at") or item.get("data") or ""
                         ])
 
-                    csv_data = output.getvalue()
-                    csv_escaped = csv_data.replace("`", "\\`").replace("${", "\\${")
-
-                    js_code = f"""
-                    (function() {{
-                        const csvContent = `{csv_escaped}`;
-                        const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement("a");
-                        link.setAttribute("href", url);
-                        link.setAttribute("download", "relatorio_financeiro.csv");
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }})();
-                    """
-                    page.run_javascript(js_code)
-                    mostrar_notificacao("📥 Download do CSV iniciado!")
+                    csv_text = output.getvalue()
+                    
+                    # Converte para base64 para garantir o download seguro pelo navegador
+                    csv_b64 = base64.b64encode(csv_text.encode('utf-8')).decode('utf-8')
+                    
+                    # Usa o comando nativo page.launch_url com data URI Base64
+                    data_uri = f"data:text/csv;base64,{csv_b64}"
+                    page.launch_url(data_uri)
+                    
+                    mostrar_notificacao("📥 Download do CSV gerado!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
 
