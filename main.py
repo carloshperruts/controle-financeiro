@@ -3,8 +3,6 @@ from supabase import create_client, Client
 import os
 from datetime import datetime
 import csv
-import io
-import base64
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
@@ -16,6 +14,10 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
+
+    # Garante que a pasta 'assets' exista no servidor
+    if not os.path.exists("assets"):
+        os.makedirs("assets")
 
     usuario_atual = {"session": None}
 
@@ -202,29 +204,24 @@ def main(page: ft.Page):
                     return
 
                 try:
-                    output = io.StringIO()
-                    writer = csv.writer(output, delimiter=';')
-                    writer.writerow(["ID", "Descrição", "Valor", "Categoria", "Tipo", "Data"])
+                    caminho_arquivo = os.path.join("assets", "relatorio_financeiro.csv")
+                    
+                    with open(caminho_arquivo, mode="w", newline="", encoding="utf-8-sig") as file:
+                        writer = csv.writer(file, delimiter=";")
+                        writer.writerow(["ID", "Descrição", "Valor", "Categoria", "Tipo", "Data"])
 
-                    for item in registros_cache:
-                        writer.writerow([
-                            item.get("id", ""),
-                            item.get("descricao", ""),
-                            item.get("valor", ""),
-                            item.get("categoria", ""),
-                            item.get("tipo", ""),
-                            item.get("created_at") or item.get("data") or ""
-                        ])
+                        for item in registros_cache:
+                            writer.writerow([
+                                item.get("id", ""),
+                                item.get("descricao", ""),
+                                item.get("valor", ""),
+                                item.get("categoria", ""),
+                                item.get("tipo", ""),
+                                item.get("created_at") or item.get("data") or ""
+                            ])
 
-                    csv_text = output.getvalue()
-                    
-                    # Converte para base64 com suporte a acentuação
-                    b64_bytes = base64.b64encode(csv_text.encode('utf-8-sig')).decode('utf-8')
-                    
-                    # Gera uma URL Data nativa que força o browser a baixar
-                    download_url = f"data:text/csv;charset=utf-8;base64,{b64_bytes}"
-                    page.launch_url(download_url)
-                    
+                    # Redireciona para o arquivo servido pela pasta assets
+                    page.launch_url("/relatorio_financeiro.csv", web_window_name="_blank")
                     mostrar_notificacao("📥 Download do CSV iniciado!")
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao exportar CSV: {str(ex)}", ft.Colors.RED_600)
@@ -384,4 +381,5 @@ def main(page: ft.Page):
 
     carregar_tela_login()
 
-ft.app(target=main)
+# Configuração do assets_dir essencial para servir o CSV publicamente
+ft.app(target=main, assets_dir="assets")
