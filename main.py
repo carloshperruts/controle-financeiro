@@ -492,7 +492,7 @@ async def main(page: ft.Page):
                     
                     txt_descricao.value = ""
                     txt_valor.value = ""
-                    mostrar_notificacao(f"✔ {tipo} salvo(a) com sucesso no banco!")
+                    mostrar_notificacao("✔ Lançamento salvo com sucesso no banco!")
                     carregar_registros()
                 except Exception as ex:
                     mostrar_notificacao(f"Erro ao salvar: {str(ex)}", ft.Colors.RED_600)
@@ -516,7 +516,7 @@ async def main(page: ft.Page):
             )
 
             btn_gasto = ft.ElevatedButton(
-                content=ft.Text("- Gasto", color=ft.Colors.WHITE),
+                content=ft.Text("- Despesa", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.RED_700,
                 on_click=lambda e: salvar_transacao("Gasto"),
                 expand=True
@@ -587,7 +587,6 @@ async def main(page: ft.Page):
             page.add(ft.Text(f"⚠️ Erro ao carregar tela principal: {str(main_err)}", color=ft.Colors.RED_400))
             page.update()
 
-    # Inicia diretamente na tela de login
     carregar_tela_login()
 
 ft.app(target=main)
