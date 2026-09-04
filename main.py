@@ -21,7 +21,7 @@ class Session:
         self.access_token = sdata.get("access_token")
         self.user = User(sdata.get("user", {}))
 
-# --- COMPONENTE DO FUNDO MATRIX ANIMADO ---
+# --- COMPONENTE DO FUNDO MATRIX ANIMADO (Apenas chuva de letras) ---
 def criar_fundo_matrix_animado(page: ft.Page):
     chars = "01PERRUT$#@%&*+-="
     num_columns = 16
@@ -37,18 +37,6 @@ def criar_fundo_matrix_animado(page: ft.Page):
             font_family="Courier"
         )
         column_controls.append(txt)
-
-    watermark = ft.Container(
-        content=ft.Text(
-            "PERRUT",
-            size=120,
-            weight=ft.FontWeight.BOLD,
-            color="#00FF66",
-            opacity=0.06,
-        ),
-        alignment=ft.Alignment(0, 0),
-        expand=True
-    )
 
     rain_row = ft.Row(
         controls=column_controls,
@@ -71,7 +59,7 @@ def criar_fundo_matrix_animado(page: ft.Page):
 
     asyncio.create_task(animar())
 
-    return ft.Stack([watermark, rain_row], expand=True)
+    return rain_row
 
 # --- APLICAÇÃO PRINCIPAL ---
 async def main(page: ft.Page):
@@ -84,13 +72,24 @@ async def main(page: ft.Page):
     msg_erro = ft.Text("", color=ft.Colors.RED_400, size=13, weight=ft.FontWeight.BOLD)
     msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400, size=13, weight=ft.FontWeight.BOLD)
 
-    # Modos de Auth: "login", "cadastro", "recuperar"
     modo_auth = "login"
 
     email_input = ft.TextField(label="E-mail", width=320, hint_text="exemplo@email.com")
     senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=320)
     confirmar_senha_input = ft.TextField(
         label="Confirmar Senha", password=True, can_reveal_password=True, width=320
+    )
+
+    # Marca d'água posicionada diretamente abaixo do formulário
+    watermark = ft.Container(
+        content=ft.Text(
+            "PERRUT",
+            size=100,
+            weight=ft.FontWeight.BOLD,
+            color="#00FF66",
+            opacity=0.08,
+        ),
+        margin=ft.Margin(0, 10, 0, 0)
     )
 
     dicas_cadastro = ft.Container(
@@ -274,8 +273,8 @@ async def main(page: ft.Page):
                 msg_sucesso.value = "✉️ E-mail de recuperação enviado! Verifique sua caixa de entrada."
             else:
                 data = response.json()
-                err_msg = data.get("msg") or data.get("error_description") or "Erro ao solicitar recuperação."
-                msg_erro.value = f"❌ {err_msg}"
+                err_msg = data.get("msg") or data.get("error_description") or data.get("error") or str(data)
+                msg_erro.value = f"❌ Erro ao solicitar recuperação: {err_msg}"
 
             page.update()
 
@@ -321,6 +320,7 @@ async def main(page: ft.Page):
                     btn_esqueci,
                     ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
                     btn_trocar,
+                    watermark
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -354,6 +354,7 @@ async def main(page: ft.Page):
                     confirmar_senha_input,
                     ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
                     btn_trocar,
+                    watermark
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -392,6 +393,7 @@ async def main(page: ft.Page):
                     email_input,
                     ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
                     btn_trocar,
+                    watermark
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
