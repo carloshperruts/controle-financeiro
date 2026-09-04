@@ -84,7 +84,8 @@ async def main(page: ft.Page):
     msg_erro = ft.Text("", color=ft.Colors.RED_400, size=13, weight=ft.FontWeight.BOLD)
     msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400, size=13, weight=ft.FontWeight.BOLD)
 
-    modo_login = True
+    # Modos de Auth: "login", "cadastro", "recuperar"
+    modo_auth = "login"
 
     email_input = ft.TextField(label="E-mail", width=320, hint_text="exemplo@email.com")
     senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=320)
@@ -129,9 +130,9 @@ async def main(page: ft.Page):
         snack.open = True
         page.update()
 
-    def alternar_modo_auth(e=None):
-        nonlocal modo_login
-        modo_login = not modo_login
+    def mudar_modo_auth(novo_modo):
+        nonlocal modo_auth
+        modo_auth = novo_modo
         carregar_tela_login()
 
     def validar_email(email_str):
@@ -236,7 +237,7 @@ async def main(page: ft.Page):
                 page.update()
                 return
 
-            alternar_modo_auth()
+            mudar_modo_auth("login")
             msg_sucesso.value = "✔ Conta criada com sucesso! Digite sua senha para entrar."
             page.update()
 
@@ -244,14 +245,52 @@ async def main(page: ft.Page):
             msg_erro.value = f"❌ Erro ao tentar cadastrar: {str(ex)}"
             page.update()
 
+    async def recuperar_senha(e):
+        msg_erro.value = ""
+        msg_sucesso.value = ""
+
+        email_val = email_input.value.strip().lower()
+
+        if not email_val or not validar_email(email_val):
+            msg_erro.value = "⚠️ Informe um e-mail válido para a recuperação."
+            page.update()
+            return
+
+        try:
+            url = f"{SUPABASE_URL}/auth/v1/recover"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Content-Type": "application/json"
+            }
+            payload = {"email": email_val}
+
+            def api_call():
+                return requests.post(url, json=payload, headers=headers)
+
+            response = await asyncio.to_thread(api_call)
+
+            if response.status_code in (200, 201):
+                mudar_modo_auth("login")
+                msg_sucesso.value = "✉️ E-mail de recuperação enviado! Verifique sua caixa de entrada."
+            else:
+                data = response.json()
+                err_msg = data.get("msg") or data.get("error_description") or "Erro ao solicitar recuperação."
+                msg_erro.value = f"❌ {err_msg}"
+
+            page.update()
+
+        except Exception as ex:
+            msg_erro.value = f"❌ Erro de conexão: {str(ex)}"
+            page.update()
+
     async def logout(e):
         usuario_atual["session"] = None
-        carregar_tela_login()
+        mudar_modo_auth("login")
 
     def carregar_tela_login():
         page.clean()
 
-        if modo_login:
+        if modo_auth == "login":
             subtitulo = ft.Text("Acesse sua conta para continuar", size=14, color=ft.Colors.GREY_400)
             btn_acao = ft.ElevatedButton(
                 "Entrar", 
@@ -260,9 +299,14 @@ async def main(page: ft.Page):
                 color=ft.Colors.WHITE,
                 on_click=lambda ev: asyncio.create_task(realizar_login(ev))
             )
+            btn_esqueci = ft.TextButton(
+                "Esqueceu sua senha?", 
+                on_click=lambda _: mudar_modo_auth("recuperar"),
+                style=ft.ButtonStyle(color=ft.Colors.GREY_400)
+            )
             btn_trocar = ft.TextButton(
                 "Não tem uma conta? Cadastre-se aqui", 
-                on_click=alternar_modo_auth
+                on_click=lambda _: mudar_modo_auth("cadastro")
             )
 
             conteudo_login = ft.Column(
@@ -274,14 +318,16 @@ async def main(page: ft.Page):
                     msg_sucesso,
                     email_input,
                     senha_input,
+                    btn_esqueci,
                     ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
                     btn_trocar,
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=12
+                spacing=10
             )
-        else:
+
+        elif modo_auth == "cadastro":
             subtitulo = ft.Text("Preencha os dados abaixo para criar sua conta", size=14, color=ft.Colors.GREY_400)
             btn_acao = ft.ElevatedButton(
                 "Cadastrar", 
@@ -292,7 +338,7 @@ async def main(page: ft.Page):
             )
             btn_trocar = ft.TextButton(
                 "Voltar para a tela de login", 
-                on_click=alternar_modo_auth
+                on_click=lambda _: mudar_modo_auth("login")
             )
 
             conteudo_login = ft.Column(
@@ -306,6 +352,44 @@ async def main(page: ft.Page):
                     email_input,
                     senha_input,
                     confirmar_senha_input,
+                    ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
+                    btn_trocar,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10
+            )
+
+        elif modo_auth == "recuperar":
+            subtitulo = ft.Text("Recuperação de Acesso", size=14, color=ft.Colors.GREY_400)
+            instrucoes = ft.Text(
+                "Digite seu e-mail cadastrado. Enviaremos as instruções para redefinir sua senha.",
+                size=12,
+                color=ft.Colors.GREY_300,
+                text_align=ft.TextAlign.CENTER,
+                width=320
+            )
+            btn_acao = ft.ElevatedButton(
+                "Enviar E-mail", 
+                width=160, 
+                bgcolor="#00AA44", 
+                color=ft.Colors.WHITE,
+                on_click=lambda ev: asyncio.create_task(recuperar_senha(ev))
+            )
+            btn_trocar = ft.TextButton(
+                "Voltar para o login", 
+                on_click=lambda _: mudar_modo_auth("login")
+            )
+
+            conteudo_login = ft.Column(
+                [
+                    titulo_auth,
+                    subtitulo,
+                    ft.Divider(color="#00FF66", height=15),
+                    instrucoes,
+                    msg_erro,
+                    msg_sucesso,
+                    email_input,
                     ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
                     btn_trocar,
                 ],
