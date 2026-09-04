@@ -156,7 +156,9 @@ async def main(page: ft.Page):
         try:
             page.clean()
 
-            user_email = usuario_atual["session"].user.email if usuario_atual["session"] and usuario_atual["session"].user else ""
+            user_session = usuario_atual.get("session")
+            user_email = user_session.user.email if user_session and user_session.user else "Usuário"
+            user_id = user_session.user.id if user_session and user_session.user else None
 
             txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
             txt_descricao = ft.TextField(label="Descrição", expand=True)
@@ -405,7 +407,12 @@ async def main(page: ft.Page):
                 lista_gastos_ui.controls.clear()
                 msg_erro.value = ""
                 try:
-                    res = supabase.table("gastos").select("*").order("id", desc=True).execute()
+                    # FILTRA REGISTROS APENAS DO USUÁRIO CONECTADO
+                    query = supabase.table("gastos").select("*")
+                    if user_id:
+                        query = query.eq("user_id", user_id)
+                    
+                    res = query.order("id", desc=True).execute()
                     registros = res.data or []
                     registros_cache = registros
 
@@ -485,7 +492,8 @@ async def main(page: ft.Page):
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
                         "categoria": dd_categoria.value,
-                        "tipo": tipo
+                        "tipo": tipo,
+                        "user_id": user_id  # GRAVA O ID DO USUÁRIO LOGADO
                     }
 
                     supabase.table("gastos").insert(payload).execute()
@@ -535,7 +543,7 @@ async def main(page: ft.Page):
                     ft.Text("Perrut - Controle Financeiro", size=24, weight=ft.FontWeight.BOLD, color="#00FF66"),
                     ft.Row(
                         [
-                            ft.Text(f"👤 {user_email}", weight=ft.FontWeight.BOLD, size=13),
+                            ft.Text(f"👤 {user_email.split('@')[0]}", weight=ft.FontWeight.BOLD, size=13),
                             ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
                         ]
                     )
