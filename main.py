@@ -1,17 +1,27 @@
 import flet as ft
-from supabase import create_client, Client
 import os
 from datetime import datetime
 import random
 import asyncio
+import requests
+import re
 
-# --- CONFIGURAÇÃO SUPABASE ---
+# --- CONFIGURAÇÃO DO SUPABASE ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_ax9nD4u05T1fdUnz-okKlw_a_iB20Hj")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZta2tkZW56a29xa2x2bHVsYWpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzg4NDIsImV4cCI6MjEwMzk1NDg0Mn0.vdCNnUnrRCQJuBKme-YYm9FqnyyV_BZ3Wh077uckxYA")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# --- HELPER DE SESSÃO / USUÁRIO ---
+class User:
+    def __init__(self, udata):
+        self.id = udata.get("id")
+        self.email = udata.get("email")
 
-# --- COMPONENTE DE FUNDO MATRIX ---
+class Session:
+    def __init__(self, sdata):
+        self.access_token = sdata.get("access_token")
+        self.user = User(sdata.get("user", {}))
+
+# --- COMPONENTE DO FUNDO MATRIX ANIMADO ---
 def criar_fundo_matrix_animado(page: ft.Page):
     chars = "01PERRUT$#@%&*+-="
     num_columns = 16
@@ -71,99 +81,267 @@ async def main(page: ft.Page):
     page.scroll = ft.ScrollMode.AUTO
 
     usuario_atual = {"session": None}
-    msg_erro = ft.Text("", color=ft.Colors.RED_400)
+    msg_erro = ft.Text("", color=ft.Colors.RED_400, size=13, weight=ft.FontWeight.BOLD)
+    msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400, size=13, weight=ft.FontWeight.BOLD)
 
-    email_input = ft.TextField(label="E-mail", width=300)
-    senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300)
+    modo_login = True
 
-    def mostrar_notificacao(texto, cor=ft.Colors.GREEN_600):
+    email_input = ft.TextField(label="E-mail", width=320, hint_text="exemplo@email.com")
+    senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=320)
+    confirmar_senha_input = ft.TextField(
+        label="Confirmar Senha", password=True, can_reveal_password=True, width=320
+    )
+
+    dicas_cadastro = ft.Container(
+        content=ft.Column(
+            [
+                ft.Row([
+                    ft.Icon(ft.Icons.INFO_OUTLINE, color="#00FF66", size=18),
+                    ft.Text("Instruções para Cadastro:", weight=ft.FontWeight.BOLD, color="#00FF66", size=13)
+                ]),
+                ft.Text("• Insira um endereço de e-mail válido ao qual você tem acesso.", size=12, color=ft.Colors.GREY_300),
+                ft.Text("• A senha deve conter pelo menos 6 caracteres.", size=12, color=ft.Colors.GREY_300),
+                ft.Text("• Verifique sua caixa de entrada caso receba confirmação.", size=12, color=ft.Colors.GREY_300)
+            ],
+            spacing=4
+        ),
+        padding=12,
+        bgcolor=ft.Colors.GREY_900,
+        border=ft.Border(
+            ft.BorderSide(1, "#00FF66"),
+            ft.BorderSide(1, "#00FF66"),
+            ft.BorderSide(1, "#00FF66"),
+            ft.BorderSide(1, "#00FF66")
+        ),
+        border_radius=8,
+        width=320
+    )
+
+    titulo_auth = ft.Text("Perrut - Controle Financeiro", size=24, weight=ft.FontWeight.BOLD, color="#00FF66")
+
+    def mostrar_notificacao_global(texto, cor=ft.Colors.GREEN_600):
         snack = ft.SnackBar(
             content=ft.Text(texto, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
             bgcolor=cor,
-            duration=4000
+            duration=3000
         )
         page.overlay.append(snack)
         snack.open = True
         page.update()
 
-    def realizar_login(e):
+    def alternar_modo_auth(e=None):
+        nonlocal modo_login
+        modo_login = not modo_login
+        carregar_tela_login()
+
+    def validar_email(email_str):
+        regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+        return re.match(regex, email_str) is not None
+
+    async def realizar_login(e):
         msg_erro.value = ""
+        msg_sucesso.value = ""
+
+        email_val = email_input.value.strip().lower()
+        senha_val = senha_input.value.strip()
+
+        if not email_val or not senha_val:
+            msg_erro.value = "⚠️ Por favor, informe o e-mail e a senha."
+            page.update()
+            return
+
         try:
-            res = supabase.auth.sign_in_with_password({
-                "email": email_input.value.strip(),
-                "password": senha_input.value
-            })
-            usuario_atual["session"] = res.session
-            carregar_tela_principal()
+            url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "email": email_val,
+                "password": senha_val
+            }
+
+            def api_call():
+                return requests.post(url, json=payload, headers=headers)
+
+            response = await asyncio.to_thread(api_call)
+            data = response.json()
+
+            if response.status_code != 200:
+                err_msg = data.get("error_description") or data.get("msg") or "E-mail ou senha incorretos."
+                msg_erro.value = f"❌ Erro ao entrar: {err_msg}"
+                page.update()
+                return
+
+            usuario_atual["session"] = Session(data)
+            await carregar_tela_principal()
+
         except Exception as ex:
-            msg_erro.value = f"❌ Erro ao entrar: {str(ex)}"
+            msg_erro.value = f"❌ Erro de conexão: {str(ex)}"
             page.update()
 
-    def realizar_cadastro(e):
+    async def realizar_cadastro(e):
         msg_erro.value = ""
+        msg_sucesso.value = ""
+
+        email_val = email_input.value.strip().lower()
+        senha_val = senha_input.value.strip()
+        conf_senha_val = confirmar_senha_input.value.strip()
+
+        if not email_val:
+            msg_erro.value = "⚠️ Por favor, informe um endereço de e-mail."
+            page.update()
+            return
+
+        if not validar_email(email_val):
+            msg_erro.value = "⚠️ Por favor, insira um e-mail válido (ex: seunome@email.com)."
+            page.update()
+            return
+
+        if not senha_val:
+            msg_erro.value = "⚠️ Por favor, crie uma senha."
+            page.update()
+            return
+
+        if len(senha_val) < 6:
+            msg_erro.value = "⚠️ A senha deve ter no mínimo 6 caracteres."
+            page.update()
+            return
+
+        if senha_val != conf_senha_val:
+            msg_erro.value = "⚠️ As senhas não coincidem. Verifique a digitação."
+            page.update()
+            return
+
         try:
-            res = supabase.auth.sign_up({
-                "email": email_input.value.strip(),
-                "password": senha_input.value
-            })
-            mostrar_notificacao("✔ Conta criada! Verifique seu e-mail.")
-        except Exception as ex:
-            msg_erro.value = f"❌ Erro ao criar conta: {str(ex)}"
+            url = f"{SUPABASE_URL}/auth/v1/signup"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "email": email_val,
+                "password": senha_val
+            }
+
+            def api_call():
+                return requests.post(url, json=payload, headers=headers)
+
+            response = await asyncio.to_thread(api_call)
+            data = response.json()
+
+            if response.status_code not in (200, 201):
+                err_msg = data.get("msg") or data.get("error_description") or str(data)
+                msg_erro.value = f"❌ Não foi possível criar a conta: {err_msg}"
+                page.update()
+                return
+
+            alternar_modo_auth()
+            msg_sucesso.value = "✔ Conta criada com sucesso! Digite sua senha para entrar."
             page.update()
 
-    def logout(e):
-        try:
-            supabase.auth.sign_out()
-        except Exception:
-            pass
+        except Exception as ex:
+            msg_erro.value = f"❌ Erro ao tentar cadastrar: {str(ex)}"
+            page.update()
+
+    async def logout(e):
         usuario_atual["session"] = None
         carregar_tela_login()
 
     def carregar_tela_login():
         page.clean()
-        
-        conteudo_login = ft.Column(
-            [
-                ft.Text("Perrut - Controle Financeiro", size=26, weight=ft.FontWeight.BOLD, color="#00FF66"),
-                ft.Divider(color="#00FF66", height=20),
-                msg_erro,
-                email_input,
-                senha_input,
-                ft.Row(
-                    [
-                        ft.ElevatedButton("Entrar", on_click=realizar_login, bgcolor="#00AA44", color=ft.Colors.WHITE),
-                        ft.OutlinedButton("Criar Conta", on_click=realizar_cadastro),
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER
-                )
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
+
+        if modo_login:
+            subtitulo = ft.Text("Acesse sua conta para continuar", size=14, color=ft.Colors.GREY_400)
+            btn_acao = ft.ElevatedButton(
+                "Entrar", 
+                width=150, 
+                bgcolor="#00AA44", 
+                color=ft.Colors.WHITE,
+                on_click=lambda ev: asyncio.create_task(realizar_login(ev))
+            )
+            btn_trocar = ft.TextButton(
+                "Não tem uma conta? Cadastre-se aqui", 
+                on_click=alternar_modo_auth
+            )
+
+            conteudo_login = ft.Column(
+                [
+                    titulo_auth,
+                    subtitulo,
+                    ft.Divider(color="#00FF66", height=15),
+                    msg_erro,
+                    msg_sucesso,
+                    email_input,
+                    senha_input,
+                    ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
+                    btn_trocar,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12
+            )
+        else:
+            subtitulo = ft.Text("Preencha os dados abaixo para criar sua conta", size=14, color=ft.Colors.GREY_400)
+            btn_acao = ft.ElevatedButton(
+                "Cadastrar", 
+                width=150, 
+                bgcolor="#00AA44", 
+                color=ft.Colors.WHITE,
+                on_click=lambda ev: asyncio.create_task(realizar_cadastro(ev))
+            )
+            btn_trocar = ft.TextButton(
+                "Voltar para a tela de login", 
+                on_click=alternar_modo_auth
+            )
+
+            conteudo_login = ft.Column(
+                [
+                    titulo_auth,
+                    subtitulo,
+                    ft.Divider(color="#00FF66", height=15),
+                    dicas_cadastro,
+                    msg_erro,
+                    msg_sucesso,
+                    email_input,
+                    senha_input,
+                    confirmar_senha_input,
+                    ft.Row([btn_acao], alignment=ft.MainAxisAlignment.CENTER),
+                    btn_trocar,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12
+            )
 
         page.add(
             ft.Stack(
                 [
                     criar_fundo_matrix_animado(page),
-                    ft.Container(content=conteudo_login, alignment=ft.Alignment(0, 0), padding=20)
+                    ft.Container(
+                        content=conteudo_login, 
+                        alignment=ft.Alignment(0, 0), 
+                        padding=20
+                    )
                 ],
                 expand=True
             )
         )
         page.update()
 
-    def carregar_tela_principal():
+    async def carregar_tela_principal():
         try:
             page.clean()
 
             user_session = usuario_atual.get("session")
             user_email = user_session.user.email if user_session and user_session.user else "Usuário"
             user_id = user_session.user.id if user_session and user_session.user else None
+            token = user_session.access_token if user_session else SUPABASE_KEY
 
-            txt_renda_base = ft.TextField(label="Renda Base (R$)", value="1.600,00", width=150)
+            txt_renda_base = ft.TextField(label="Renda Base (R$)", value="0,00", width=150)
             txt_descricao = ft.TextField(label="Descrição", expand=True)
             txt_valor = ft.TextField(label="Valor (R$)", width=150)
-            
+
             dd_categoria = ft.Dropdown(
                 label="Categoria",
                 value="Outros",
@@ -235,12 +413,73 @@ async def main(page: ft.Page):
 
             registros_cache = []
 
+            async def carregar_renda_usuario():
+                try:
+                    url = f"{SUPABASE_URL}/rest/v1/configuracoes?user_id=eq.{user_id}&select=renda_base"
+                    headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    }
+
+                    def fetch_renda():
+                        return requests.get(url, headers=headers)
+
+                    res = await asyncio.to_thread(fetch_renda)
+                    if res.status_code == 200 and res.json():
+                        valor_renda = res.json()[0].get("renda_base", 0.0)
+                        txt_renda_base.value = f"{float(valor_renda):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        page.update()
+                except Exception:
+                    pass
+
+            async def salvar_renda_base(e=None):
+                try:
+                    raw_val = txt_renda_base.value.strip()
+                    val_clean = raw_val.replace(".", "").replace(",", ".")
+                    renda_num = float(val_clean)
+
+                    headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                        "Prefer": "return=representation"
+                    }
+
+                    url_patch = f"{SUPABASE_URL}/rest/v1/configuracoes?user_id=eq.{user_id}"
+                    payload = {"renda_base": renda_num}
+
+                    def sync_patch():
+                        return requests.patch(url_patch, json=payload, headers=headers)
+
+                    res = await asyncio.to_thread(sync_patch)
+
+                    if res.status_code == 200 and len(res.json()) == 0:
+                        url_post = f"{SUPABASE_URL}/rest/v1/configuracoes"
+                        payload_post = {"user_id": user_id, "renda_base": renda_num}
+
+                        def sync_post():
+                            return requests.post(url_post, json=payload_post, headers=headers)
+
+                        res = await asyncio.to_thread(sync_post)
+
+                    if res.status_code in (200, 201, 204):
+                        mostrar_notificacao_global("✔ Renda base atualizada com sucesso!")
+                        await carregar_registros()
+                    else:
+                        mostrar_notificacao_global(f"❌ Erro RLS Supabase ({res.status_code}): Verifique as permissões da tabela 'configuracoes'", ft.Colors.RED_600)
+                except ValueError:
+                    mostrar_notificacao_global("⚠️ Valor de renda inválido!", ft.Colors.RED_600)
+                except Exception as ex:
+                    mostrar_notificacao_global(f"❌ Erro: {str(ex)}", ft.Colors.RED_600)
+
             def calcular_totais(registros):
                 tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
                 tot_gasto = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Gasto")
-                
+
                 try:
-                    renda_base = float(txt_renda_base.value.replace(".", "").replace(",", "."))
+                    val_clean = txt_renda_base.value.strip().replace(".", "").replace(",", ".")
+                    renda_base = float(val_clean)
                 except ValueError:
                     renda_base = 0.0
 
@@ -314,9 +553,10 @@ async def main(page: ft.Page):
 
                 tot_receitas = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Receita")
                 tot_gastos = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Gasto")
-                
+
                 try:
-                    renda_base = float(txt_renda_base.value.replace(".", "").replace(",", "."))
+                    val_clean = txt_renda_base.value.strip().replace(".", "").replace(",", ".")
+                    renda_base = float(val_clean)
                 except ValueError:
                     renda_base = 0.0
 
@@ -340,7 +580,7 @@ async def main(page: ft.Page):
                         val = float(item.get("valor", 0))
                         sinal = "+" if tipo == "Receita" else "-"
                         cor_v = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
-                        
+
                         lista_itens_dialog.controls.append(
                             ft.Container(
                                 content=ft.Row([
@@ -402,18 +642,29 @@ async def main(page: ft.Page):
                 dialog.open = True
                 page.update()
 
-            def carregar_registros(e=None):
+            async def carregar_registros(e=None):
                 nonlocal registros_cache
                 lista_gastos_ui.controls.clear()
-                msg_erro.value = ""
                 try:
-                    # FILTRA REGISTROS APENAS DO USUÁRIO CONECTADO
-                    query = supabase.table("gastos").select("*")
+                    url = f"{SUPABASE_URL}/rest/v1/gastos?select=*&order=id.desc"
                     if user_id:
-                        query = query.eq("user_id", user_id)
-                    
-                    res = query.order("id", desc=True).execute()
-                    registros = res.data or []
+                        url += f"&user_id=eq.{user_id}"
+
+                    headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    }
+
+                    def fetch_db():
+                        return requests.get(url, headers=headers)
+
+                    res = await asyncio.to_thread(fetch_db)
+                    registros = res.json() if res.status_code == 200 else []
+
+                    if not isinstance(registros, list):
+                        registros = []
+
                     registros_cache = registros
 
                     termo_busca = txt_busca.value.lower() if txt_busca.value else ""
@@ -448,7 +699,7 @@ async def main(page: ft.Page):
                             icon=ft.Icons.DELETE_OUTLINE,
                             icon_color=ft.Colors.RED_400,
                             tooltip="Excluir",
-                            on_click=lambda e, i=item_id: deletar_registro(i)
+                            on_click=lambda e, i=item_id: asyncio.create_task(deletar_registro(i))
                         )
 
                         card_item = ft.Container(
@@ -474,59 +725,82 @@ async def main(page: ft.Page):
                     calcular_totais(registros)
                     atualizar_grafico(registros)
                 except Exception as ex:
-                    msg_erro.value = f"Erro ao carregar dados: {str(ex)}"
-                
+                    mostrar_notificacao_global(f"Erro ao carregar dados: {str(ex)}", ft.Colors.RED_600)
+
                 page.update()
 
-            def salvar_transacao(tipo):
-                msg_erro.value = ""
-                
+            async def salvar_transacao(tipo):
                 if not txt_descricao.value or not txt_valor.value:
-                    mostrar_notificacao("Preencha a descrição e o valor!", ft.Colors.RED_600)
+                    mostrar_notificacao_global("Preencha a descrição e o valor!", ft.Colors.RED_600)
                     return
 
                 try:
                     valor_num = float(txt_valor.value.replace(".", "").replace(",", "."))
-                    
+
                     payload = {
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
                         "categoria": dd_categoria.value,
                         "tipo": tipo,
-                        "user_id": user_id  # GRAVA O ID DO USUÁRIO LOGADO
+                        "user_id": user_id
                     }
 
-                    supabase.table("gastos").insert(payload).execute()
-                    
+                    url = f"{SUPABASE_URL}/rest/v1/gastos"
+                    headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                        "Prefer": "return=representation"
+                    }
+
+                    def post_db():
+                        return requests.post(url, json=payload, headers=headers)
+
+                    res = await asyncio.to_thread(post_db)
+
+                    if res.status_code not in (200, 201):
+                        mostrar_notificacao_global(f"Erro ao salvar: {res.text}", ft.Colors.RED_600)
+                        return
+
                     txt_descricao.value = ""
                     txt_valor.value = ""
-                    mostrar_notificacao("✔ Lançamento salvo com sucesso no banco!")
-                    carregar_registros()
+                    mostrar_notificacao_global("✔ Lançamento salvo com sucesso no banco!")
+                    await carregar_registros()
                 except Exception as ex:
-                    mostrar_notificacao(f"Erro ao salvar: {str(ex)}", ft.Colors.RED_600)
+                    mostrar_notificacao_global(f"Erro ao salvar: {str(ex)}", ft.Colors.RED_600)
 
-            def deletar_registro(item_id):
+            async def deletar_registro(item_id):
                 try:
-                    supabase.table("gastos").delete().eq("id", item_id).execute()
-                    mostrar_notificacao("🗑️ Registro excluído!")
-                    carregar_registros()
-                except Exception as ex:
-                    mostrar_notificacao(f"Erro ao excluir: {str(ex)}", ft.Colors.RED_600)
+                    url = f"{SUPABASE_URL}/rest/v1/gastos?id=eq.{item_id}"
+                    headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    }
 
-            txt_busca.on_change = carregar_registros
-            dd_filtro.on_change = carregar_registros
+                    def delete_db():
+                        return requests.delete(url, headers=headers)
+
+                    await asyncio.to_thread(delete_db)
+                    mostrar_notificacao_global("🗑️ Registro excluído!")
+                    await carregar_registros()
+                except Exception as ex:
+                    mostrar_notificacao_global(f"Erro ao excluir: {str(ex)}", ft.Colors.RED_600)
+
+            txt_busca.on_change = lambda e: asyncio.create_task(carregar_registros(e))
+            dd_filtro.on_change = lambda e: asyncio.create_task(carregar_registros(e))
 
             btn_receita = ft.ElevatedButton(
                 content=ft.Text("+ Receita", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.GREEN_700,
-                on_click=lambda e: salvar_transacao("Receita"),
+                on_click=lambda e: asyncio.create_task(salvar_transacao("Receita")),
                 expand=True
             )
 
             btn_gasto = ft.ElevatedButton(
                 content=ft.Text("- Despesa", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.RED_700,
-                on_click=lambda e: salvar_transacao("Gasto"),
+                on_click=lambda e: asyncio.create_task(salvar_transacao("Gasto")),
                 expand=True
             )
 
@@ -555,8 +829,8 @@ async def main(page: ft.Page):
                 [
                     header_app,
                     ft.Divider(color="#00FF66", height=1),
-                    ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=carregar_registros)]),
-                    
+                    ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=lambda e: asyncio.create_task(salvar_renda_base()))]),
+
                     ft.Container(
                         content=ft.Row([
                             dd_mes_relatorio,
@@ -571,7 +845,6 @@ async def main(page: ft.Page):
                     ft.Row([lbl_receitas, lbl_gastos], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                     grafico_ui,
-                    msg_erro,
                     ft.Row([txt_descricao]),
                     ft.Row([txt_valor, dd_categoria]),
                     ft.Row([btn_receita, btn_gasto]),
@@ -590,7 +863,8 @@ async def main(page: ft.Page):
                 )
             )
 
-            carregar_registros()
+            await carregar_renda_usuario()
+            await carregar_registros()
         except Exception as main_err:
             page.add(ft.Text(f"⚠️ Erro ao carregar tela principal: {str(main_err)}", color=ft.Colors.RED_400))
             page.update()
