@@ -426,18 +426,29 @@ async def main(page: ft.Page):
 
             txt_renda_base = ft.TextField(label="Renda Base (R$)", value="0,00", width=150)
             txt_descricao = ft.TextField(label="Descrição", expand=True)
-            txt_valor = ft.TextField(label="Valor (R$)", width=150)
+            txt_valor = ft.TextField(label="Valor (R$)", width=130)
 
             dd_categoria = ft.Dropdown(
                 label="Categoria",
                 value="Outros",
-                width=150,
+                width=140,
                 options=[
                     ft.dropdown.Option("Alimentação"),
                     ft.dropdown.Option("Moradia"),
                     ft.dropdown.Option("Transporte"),
                     ft.dropdown.Option("Lazer"),
                     ft.dropdown.Option("Outros"),
+                ]
+            )
+
+            dd_forma_pagamento = ft.Dropdown(
+                label="Pagamento / Origem",
+                value="Débito / Pix",
+                width=170,
+                options=[
+                    ft.dropdown.Option("Dinheiro"),
+                    ft.dropdown.Option("Débito / Pix"),
+                    ft.dropdown.Option("Cartão de Crédito"),
                 ]
             )
 
@@ -504,7 +515,25 @@ async def main(page: ft.Page):
 
             registros_cache = []
 
-            # --- LÓGICA DE EXPORTAÇÃO EXCEL / CSV DIRETA ---
+            def obter_mes_ano_efetivo(item):
+                raw_data = item.get("created_at") or item.get("data")
+                forma = item.get("forma_pagamento", "Débito / Pix")
+                if not raw_data:
+                    dt = datetime.now()
+                else:
+                    try:
+                        dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
+                    except Exception:
+                        dt = datetime.now()
+
+                if forma == "Cartão de Crédito":
+                    if dt.month == 12:
+                        return "01", str(dt.year + 1), dt
+                    else:
+                        return str(dt.month + 1).zfill(2), str(dt.year), dt
+                else:
+                    return str(dt.month).zfill(2), str(dt.year), dt
+
             def exportar_para_excel(e):
                 if not registros_cache:
                     mostrar_notificacao_global("⚠️ Nenhum registro encontrado para exportar!", ft.Colors.AMBER_600)
@@ -515,23 +544,15 @@ async def main(page: ft.Page):
                 
                 dados_filtrados = []
                 for item in registros_cache:
-                    raw_data = item.get("created_at") or item.get("data")
-                    if raw_data:
-                        try:
-                            dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
-                            if str(dt.month).zfill(2) == mes_sel and str(dt.year) == ano_sel:
-                                dados_filtrados.append(item)
-                        except Exception:
-                            dados_filtrados.append(item)
-                    else:
-                        dados_filtrados.append(item)
+                    m_ef, a_ef, dt = obter_mes_ano_efetivo(item)
+                    if m_ef == mes_sel and a_ef == ano_sel:
+                        dados_filtrados.append((item, dt))
 
                 if not dados_filtrados:
                     mostrar_notificacao_global(f"⚠️ Nenhum lançamento para o mês {mes_sel}/{ano_sel}!", ft.Colors.AMBER_600)
                     return
 
                 try:
-                    # Salva direto na pasta Downloads ou pasta do Usuário
                     caminho_user = os.path.expanduser("~")
                     pasta_destino = os.path.join(caminho_user, "Downloads")
                     if not os.path.exists(pasta_destino):
@@ -542,22 +563,15 @@ async def main(page: ft.Page):
 
                     with open(caminho_completo, mode="w", newline="", encoding="utf-8-sig") as f:
                         writer = csv.writer(f, delimiter=";")
-                        writer.writerow(["Data", "Descrição", "Categoria", "Tipo", "Valor (R$)"])
-                        for item in dados_filtrados:
-                            raw_d = item.get("created_at") or item.get("data")
-                            dt_fmt = ""
-                            if raw_d:
-                                try:
-                                    dt = datetime.fromisoformat(str(raw_d).replace("Z", "+00:00"))
-                                    dt_fmt = dt.strftime("%d/%m/%Y %H:%M")
-                                except Exception:
-                                    dt_fmt = str(raw_d)
-
+                        writer.writerow(["Data Lançamento", "Descrição", "Categoria", "Forma Pagamento", "Tipo", "Valor (R$)"])
+                        for item, dt in dados_filtrados:
+                            dt_fmt = dt.strftime("%d/%m/%Y %H:%M")
                             val_str = f"{float(item.get('valor', 0)):.2f}".replace(".", ",")
                             writer.writerow([
                                 dt_fmt,
                                 item.get("descricao", ""),
                                 item.get("categoria", ""),
+                                item.get("forma_pagamento", "Débito / Pix"),
                                 item.get("tipo", "Gasto"),
                                 val_str
                             ])
@@ -621,7 +635,7 @@ async def main(page: ft.Page):
                         mostrar_notificacao_global("✔ Renda base atualizada com sucesso!")
                         await carregar_registros()
                     else:
-                        mostrar_notificacao_global(f"❌ Erro RLS Supabase ({res.status_code}): Verifique as permissões da tabela 'configuracoes'", ft.Colors.RED_600)
+                        mostrar_notificacao_global(f"❌ Erro RLS Supabase ({res.status_code}): Verifique permissões.", ft.Colors.RED_600)
                 except ValueError:
                     mostrar_notificacao_global("⚠️ Valor de renda inválido!", ft.Colors.RED_600)
                 except Exception as ex:
@@ -694,16 +708,9 @@ async def main(page: ft.Page):
 
                 itens_mes = []
                 for item in registros_cache:
-                    raw_data = item.get("created_at") or item.get("data")
-                    if raw_data:
-                        try:
-                            dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
-                            m_str = str(dt.month).zfill(2)
-                            a_str = str(dt.year)
-                            if m_str == mes_sel and a_str == ano_sel:
-                                itens_mes.append((item, dt))
-                        except Exception:
-                            pass
+                    m_ef, a_ef, dt = obter_mes_ano_efetivo(item)
+                    if m_ef == mes_sel and a_ef == ano_sel:
+                        itens_mes.append((item, dt))
 
                 tot_receitas = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Receita")
                 tot_gastos = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Gasto")
@@ -731,6 +738,7 @@ async def main(page: ft.Page):
                 else:
                     for item, dt in itens_mes:
                         tipo = item.get("tipo", "Gasto")
+                        forma = item.get("forma_pagamento", "Débito / Pix")
                         val = float(item.get("valor", 0))
                         sinal = "+" if tipo == "Receita" else "-"
                         cor_v = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
@@ -738,7 +746,7 @@ async def main(page: ft.Page):
                         lista_itens_dialog.controls.append(
                             ft.Container(
                                 content=ft.Row([
-                                    ft.Text(f"{dt.strftime('%d/%m')} - {item.get('descricao', '')} ({item.get('categoria', '')})", size=13),
+                                    ft.Text(f"{dt.strftime('%d/%m')} - {item.get('descricao', '')} ({forma})", size=13),
                                     ft.Text(f"{sinal}R$ {val:.2f}", color=cor_v, weight=ft.FontWeight.BOLD, size=13)
                                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                                 padding=5,
@@ -831,25 +839,12 @@ async def main(page: ft.Page):
                     for item in registros:
                         desc = str(item.get("descricao", ""))
                         cat = str(item.get("categoria", ""))
-                        raw_data = item.get("created_at") or item.get("data")
+                        forma = item.get("forma_pagamento", "Débito / Pix")
 
-                        data_valida = True
-                        str_data_hora = ""
-                        if raw_data:
-                            try:
-                                dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
-                                m_str = str(dt.month).zfill(2)
-                                a_str = str(dt.year)
-                                str_data_hora = dt.strftime("%d/%m/%Y %H:%M")
+                        m_ef, a_ef, dt = obter_mes_ano_efetivo(item)
+                        str_data_hora = dt.strftime("%d/%m/%Y %H:%M")
 
-                                if m_str != mes_sel or a_str != ano_sel:
-                                    data_valida = False
-                            except Exception:
-                                str_data_hora = str(raw_data)
-                        else:
-                            str_data_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-                        if not data_valida:
+                        if m_ef != mes_sel or a_ef != ano_sel:
                             continue
 
                         registros_filtrados_mes.append(item)
@@ -865,6 +860,13 @@ async def main(page: ft.Page):
                         cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
                         sinal = "+" if tipo == "Receita" else "-"
 
+                        if forma == "Dinheiro":
+                            icon_forma = "💵 Dinheiro"
+                        elif forma == "Cartão de Crédito":
+                            icon_forma = "💳 Crédito (Fatura Mês Seguinte)"
+                        else:
+                            icon_forma = "💳 Débito / Pix"
+
                         btn_deletar = ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
                             icon_color=ft.Colors.RED_400,
@@ -878,7 +880,8 @@ async def main(page: ft.Page):
                                     ft.Column(
                                         [
                                             ft.Text(desc, weight=ft.FontWeight.BOLD, size=16),
-                                            ft.Text(f"{cat} • {str_data_hora} • {sinal}R$ {valor:.2f}", color=cor_valor),
+                                            ft.Text(f"{cat} • {icon_forma} • {str_data_hora}", size=12, color=ft.Colors.GREY_400),
+                                            ft.Text(f"{sinal}R$ {valor:.2f}", color=cor_valor, weight=ft.FontWeight.BOLD)
                                         ],
                                         expand=True
                                     ),
@@ -895,7 +898,7 @@ async def main(page: ft.Page):
                     if not lista_gastos_ui.controls:
                         lista_gastos_ui.controls.append(
                             ft.Container(
-                                content=ft.Text("Nenhum lançamento para este mês até o momento.", color=ft.Colors.GREY_500, size=13),
+                                content=ft.Text("Nenhum lançamento faturado para este mês.", color=ft.Colors.GREY_500, size=13),
                                 padding=15,
                                 alignment=ft.Alignment(0, 0)
                             )
@@ -920,6 +923,7 @@ async def main(page: ft.Page):
                         "descricao": txt_descricao.value.strip(),
                         "valor": valor_num,
                         "categoria": dd_categoria.value,
+                        "forma_pagamento": dd_forma_pagamento.value,
                         "tipo": tipo,
                         "user_id": user_id
                     }
@@ -943,7 +947,16 @@ async def main(page: ft.Page):
 
                     txt_descricao.value = ""
                     txt_valor.value = ""
-                    mostrar_notificacao_global("✔ Lançamento salvo com sucesso no banco!")
+
+                    # --- MENSAGEM CLARA DEPENDENDO DA FORMA DE PAGAMENTO ---
+                    if dd_forma_pagamento.value == "Cartão de Crédito":
+                        mostrar_notificacao_global(
+                            "💳 Lançamento registrado na fatura do mês seguinte!", 
+                            ft.Colors.BLUE_700
+                        )
+                    else:
+                        mostrar_notificacao_global("✔ Lançamento salvo com sucesso!")
+
                     await carregar_registros()
                 except Exception as ex:
                     mostrar_notificacao_global(f"Erro ao salvar: {str(ex)}", ft.Colors.RED_600)
@@ -1048,7 +1061,7 @@ async def main(page: ft.Page):
                     ft.Row([lbl_saldo], alignment=ft.MainAxisAlignment.CENTER),
                     grafico_ui,
                     ft.Row([txt_descricao]),
-                    ft.Row([txt_valor, dd_categoria]),
+                    ft.Row([txt_valor, dd_categoria, dd_forma_pagamento], wrap=True),
                     ft.Row([btn_receita, btn_gasto]),
                     ft.Row([txt_busca, dd_filtro]),
                     lista_gastos_ui
