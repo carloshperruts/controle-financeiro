@@ -5,6 +5,7 @@ import random
 import asyncio
 import requests
 import re
+import csv
 
 # --- CONFIGURAÇÃO DO SUPABASE ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
@@ -122,7 +123,7 @@ async def main(page: ft.Page):
         snack = ft.SnackBar(
             content=ft.Text(texto, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
             bgcolor=cor,
-            duration=3000
+            duration=4000
         )
         page.overlay.append(snack)
         snack.open = True
@@ -502,6 +503,69 @@ async def main(page: ft.Page):
             grafico_ui = ft.Column()
 
             registros_cache = []
+
+            # --- LÓGICA DE EXPORTAÇÃO EXCEL / CSV DIRETA ---
+            def exportar_para_excel(e):
+                if not registros_cache:
+                    mostrar_notificacao_global("⚠️ Nenhum registro encontrado para exportar!", ft.Colors.AMBER_600)
+                    return
+
+                mes_sel = str(dd_mes_relatorio.value).zfill(2)
+                ano_sel = str(dd_ano_relatorio.value)
+                
+                dados_filtrados = []
+                for item in registros_cache:
+                    raw_data = item.get("created_at") or item.get("data")
+                    if raw_data:
+                        try:
+                            dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
+                            if str(dt.month).zfill(2) == mes_sel and str(dt.year) == ano_sel:
+                                dados_filtrados.append(item)
+                        except Exception:
+                            dados_filtrados.append(item)
+                    else:
+                        dados_filtrados.append(item)
+
+                if not dados_filtrados:
+                    mostrar_notificacao_global(f"⚠️ Nenhum lançamento para o mês {mes_sel}/{ano_sel}!", ft.Colors.AMBER_600)
+                    return
+
+                try:
+                    # Salva direto na pasta Downloads ou pasta do Usuário
+                    caminho_user = os.path.expanduser("~")
+                    pasta_destino = os.path.join(caminho_user, "Downloads")
+                    if not os.path.exists(pasta_destino):
+                        pasta_destino = caminho_user
+
+                    nome_arquivo = f"Relatorio_Financeiro_{mes_sel}_{ano_sel}.csv"
+                    caminho_completo = os.path.join(pasta_destino, nome_arquivo)
+
+                    with open(caminho_completo, mode="w", newline="", encoding="utf-8-sig") as f:
+                        writer = csv.writer(f, delimiter=";")
+                        writer.writerow(["Data", "Descrição", "Categoria", "Tipo", "Valor (R$)"])
+                        for item in dados_filtrados:
+                            raw_d = item.get("created_at") or item.get("data")
+                            dt_fmt = ""
+                            if raw_d:
+                                try:
+                                    dt = datetime.fromisoformat(str(raw_d).replace("Z", "+00:00"))
+                                    dt_fmt = dt.strftime("%d/%m/%Y %H:%M")
+                                except Exception:
+                                    dt_fmt = str(raw_d)
+
+                            val_str = f"{float(item.get('valor', 0)):.2f}".replace(".", ",")
+                            writer.writerow([
+                                dt_fmt,
+                                item.get("descricao", ""),
+                                item.get("categoria", ""),
+                                item.get("tipo", "Gasto"),
+                                val_str
+                            ])
+
+                    mostrar_notificacao_global(f"✔ Relatório salvo em: {caminho_completo}")
+
+                except Exception as err:
+                    mostrar_notificacao_global(f"❌ Erro ao exportar: {str(err)}", ft.Colors.RED_600)
 
             async def carregar_renda_usuario():
                 try:
@@ -927,6 +991,14 @@ async def main(page: ft.Page):
                 icon=ft.Icons.ASSESSMENT
             )
 
+            btn_exportar_excel = ft.ElevatedButton(
+                "📥 Exportar CSV/Excel",
+                on_click=exportar_para_excel,
+                bgcolor=ft.Colors.TEAL_800,
+                color=ft.Colors.WHITE,
+                icon=ft.Icons.FILE_DOWNLOAD
+            )
+
             btn_salvar_renda = ft.ElevatedButton(
                 "Salvar Renda", 
                 on_click=lambda e: asyncio.create_task(salvar_renda_base()),
@@ -964,8 +1036,9 @@ async def main(page: ft.Page):
                         content=ft.Row([
                             dd_mes_relatorio,
                             dd_ano_relatorio,
-                            btn_gerar_relatorio
-                        ], alignment=ft.MainAxisAlignment.START),
+                            btn_gerar_relatorio,
+                            btn_exportar_excel
+                        ], alignment=ft.MainAxisAlignment.START, wrap=True),
                         padding=10,
                         bgcolor=ft.Colors.GREY_900,
                         border_radius=8
