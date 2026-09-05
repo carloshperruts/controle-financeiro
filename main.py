@@ -506,8 +506,9 @@ async def main(page: ft.Page):
             )
             dd_ano_relatorio.on_change = ao_mudar_periodo
 
-            lbl_receitas = ft.Text("Receitas (Mês): R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
-            lbl_gastos = ft.Text("Gastos (Mês): R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
+            lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
+            # PADRONIZAÇÃO AQUI: Alterado de Gastos para Despesas
+            lbl_gastos = ft.Text("Despesas: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
             lbl_saldo = ft.Text("Saldo do Mês: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
             lista_gastos_ui = ft.Column()
@@ -567,12 +568,15 @@ async def main(page: ft.Page):
                         for item, dt in dados_filtrados:
                             dt_fmt = dt.strftime("%d/%m/%Y %H:%M")
                             val_str = f"{float(item.get('valor', 0)):.2f}".replace(".", ",")
+                            tipo_item = item.get("tipo", "Despesa")
+                            if tipo_item == "Gasto":
+                                tipo_item = "Despesa"
                             writer.writerow([
                                 dt_fmt,
                                 item.get("descricao", ""),
                                 item.get("categoria", ""),
                                 item.get("forma_pagamento", "Débito / Pix"),
-                                item.get("tipo", "Gasto"),
+                                tipo_item,
                                 val_str
                             ])
 
@@ -643,7 +647,7 @@ async def main(page: ft.Page):
 
             def calcular_totais(registros_filtrados):
                 tot_receita = sum(float(r["valor"]) for r in registros_filtrados if r.get("tipo") == "Receita")
-                tot_gasto = sum(float(r["valor"]) for r in registros_filtrados if r.get("tipo") == "Gasto")
+                tot_despesa = sum(float(r["valor"]) for r in registros_filtrados if r.get("tipo") in ("Despesa", "Gasto"))
 
                 try:
                     val_clean = txt_renda_base.value.strip().replace(".", "").replace(",", ".")
@@ -651,25 +655,25 @@ async def main(page: ft.Page):
                 except ValueError:
                     renda_base = 0.0
 
-                saldo = renda_base + tot_receita - tot_gasto
+                saldo = renda_base + tot_receita - tot_despesa
 
                 lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
-                lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
+                lbl_gastos.value = f"Despesas: R$ {tot_despesa:.2f}"
                 lbl_saldo.value = f"Saldo do Mês: R$ {saldo:.2f}"
                 lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
 
             def atualizar_grafico(registros_filtrados):
                 grafico_ui.controls.clear()
-                gastos = [r for r in registros_filtrados if r.get("tipo", "Gasto") == "Gasto"]
-                tot_gasto = sum(float(r["valor"]) for r in gastos)
+                despesas = [r for r in registros_filtrados if r.get("tipo", "Despesa") in ("Despesa", "Gasto")]
+                tot_despesa = sum(float(r["valor"]) for r in despesas)
 
-                if tot_gasto == 0:
+                if tot_despesa == 0:
                     return
 
                 categorias = {}
-                for g in gastos:
-                    cat = g.get("categoria", "Outros")
-                    val = float(g.get("valor", 0))
+                for d in despesas:
+                    cat = d.get("categoria", "Outros")
+                    val = float(d.get("valor", 0))
                     categorias[cat] = categorias.get(cat, 0.0) + val
 
                 cores = [
@@ -681,10 +685,11 @@ async def main(page: ft.Page):
                     ft.Colors.PINK_400
                 ]
 
-                grafico_ui.controls.append(ft.Text("📊 Distribuição de Gastos Por Categoria", weight=ft.FontWeight.BOLD, size=16))
+                # PADRONIZAÇÃO AQUI: Título do gráfico atualizado conforme solicitado
+                grafico_ui.controls.append(ft.Text("📊 Distribuição de Receitas/Despesas Por Categoria", weight=ft.FontWeight.BOLD, size=16))
 
                 for idx, (cat, val) in enumerate(categorias.items()):
-                    porcentagem = (val / tot_gasto) * 100
+                    porcentagem = (val / tot_despesa) * 100
                     cor = cores[idx % len(cores)]
 
                     grafico_ui.controls.append(
@@ -713,7 +718,7 @@ async def main(page: ft.Page):
                         itens_mes.append((item, dt))
 
                 tot_receitas = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Receita")
-                tot_gastos = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") == "Gasto")
+                tot_despesas = sum(float(x[0]["valor"]) for x in itens_mes if x[0].get("tipo") in ("Despesa", "Gasto"))
 
                 try:
                     val_clean = txt_renda_base.value.strip().replace(".", "").replace(",", ".")
@@ -721,7 +726,7 @@ async def main(page: ft.Page):
                 except ValueError:
                     renda_base = 0.0
 
-                saldo_final = renda_base + tot_receitas - tot_gastos
+                saldo_final = renda_base + tot_receitas - tot_despesas
 
                 if saldo_final >= 0:
                     status_text = f"🟢 SUPERÁVIT DE R$ {saldo_final:.2f}"
@@ -737,7 +742,7 @@ async def main(page: ft.Page):
                     lista_itens_dialog.controls.append(ft.Text("Nenhum registro encontrado para este período.", color=ft.Colors.GREY_400))
                 else:
                     for item, dt in itens_mes:
-                        tipo = item.get("tipo", "Gasto")
+                        tipo = item.get("tipo", "Despesa")
                         forma = item.get("forma_pagamento", "Débito / Pix")
                         val = float(item.get("valor", 0))
                         sinal = "+" if tipo == "Receita" else "-"
@@ -785,7 +790,7 @@ async def main(page: ft.Page):
                                 ft.Text(f"Receitas Extra: R$ {tot_receitas:.2f}", color=ft.Colors.GREEN_400),
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([
-                                ft.Text(f"Total Gastos: R$ {tot_gastos:.2f}", color=ft.Colors.RED_400),
+                                ft.Text(f"Total Despesas: R$ {tot_despesas:.2f}", color=ft.Colors.RED_400),
                                 ft.Text(f"Total Lançamentos: {len(itens_mes)}"),
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(),
@@ -855,7 +860,7 @@ async def main(page: ft.Page):
                             continue
 
                         item_id = item["id"]
-                        tipo = item.get("tipo", "Gasto")
+                        tipo = item.get("tipo", "Despesa")
                         valor = float(item.get("valor", 0))
                         cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
                         sinal = "+" if tipo == "Receita" else "-"
@@ -948,7 +953,6 @@ async def main(page: ft.Page):
                     txt_descricao.value = ""
                     txt_valor.value = ""
 
-                    # --- MENSAGEM CLARA DEPENDENDO DA FORMA DE PAGAMENTO ---
                     if dd_forma_pagamento.value == "Cartão de Crédito":
                         mostrar_notificacao_global(
                             "💳 Lançamento registrado na fatura do mês seguinte!", 
@@ -989,10 +993,10 @@ async def main(page: ft.Page):
                 expand=True
             )
 
-            btn_gasto = ft.ElevatedButton(
+            btn_despesa = ft.ElevatedButton(
                 content=ft.Text("- Despesa", color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.RED_700,
-                on_click=lambda e: asyncio.create_task(salvar_transacao("Gasto")),
+                on_click=lambda e: asyncio.create_task(salvar_transacao("Despesa")),
                 expand=True
             )
 
@@ -1062,7 +1066,7 @@ async def main(page: ft.Page):
                     grafico_ui,
                     ft.Row([txt_descricao]),
                     ft.Row([txt_valor, dd_categoria, dd_forma_pagamento], wrap=True),
-                    ft.Row([btn_receita, btn_gasto]),
+                    ft.Row([btn_receita, btn_despesa]),
                     ft.Row([txt_busca, dd_filtro]),
                     lista_gastos_ui
                 ]
