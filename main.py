@@ -21,7 +21,7 @@ class Session:
         self.access_token = sdata.get("access_token")
         self.user = User(sdata.get("user", {}))
 
-# --- COMPONENTE DO FUNDO MATRIX ANIMADO (Apenas chuva de letras) ---
+# --- COMPONENTE DO FUNDO MATRIX ANIMADO ---
 def criar_fundo_matrix_animado(page: ft.Page):
     chars = "01PERRUT$#@%&*+-="
     num_columns = 16
@@ -80,7 +80,6 @@ async def main(page: ft.Page):
         label="Confirmar Senha", password=True, can_reveal_password=True, width=320
     )
 
-    # Marca d'água posicionada diretamente abaixo do formulário
     watermark = ft.Container(
         content=ft.Text(
             "PERRUT",
@@ -459,8 +458,11 @@ async def main(page: ft.Page):
             mes_atual_str = str(datetime.now().month).zfill(2)
             ano_atual_str = str(datetime.now().year)
 
+            def ao_mudar_periodo(e):
+                asyncio.create_task(carregar_registros())
+
             dd_mes_relatorio = ft.Dropdown(
-                label="Mês do Relatório",
+                label="Mês do Período",
                 value=mes_atual_str,
                 width=130,
                 options=[
@@ -478,6 +480,7 @@ async def main(page: ft.Page):
                     ft.dropdown.Option("12", "Dezembro"),
                 ]
             )
+            dd_mes_relatorio.on_change = ao_mudar_periodo
 
             dd_ano_relatorio = ft.Dropdown(
                 label="Ano",
@@ -489,10 +492,11 @@ async def main(page: ft.Page):
                     ft.dropdown.Option("2026"),
                 ]
             )
+            dd_ano_relatorio.on_change = ao_mudar_periodo
 
-            lbl_receitas = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
-            lbl_gastos = ft.Text("Gastos: R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
-            lbl_saldo = ft.Text("Saldo: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
+            lbl_receitas = ft.Text("Receitas (Mês): R$ 0.00", color=ft.Colors.GREEN_400, weight=ft.FontWeight.BOLD)
+            lbl_gastos = ft.Text("Gastos (Mês): R$ 0.00", color=ft.Colors.RED_400, weight=ft.FontWeight.BOLD)
+            lbl_saldo = ft.Text("Saldo do Mês: R$ 0.00", color=ft.Colors.GREEN_400, size=18, weight=ft.FontWeight.BOLD)
 
             lista_gastos_ui = ft.Column()
             grafico_ui = ft.Column()
@@ -559,9 +563,9 @@ async def main(page: ft.Page):
                 except Exception as ex:
                     mostrar_notificacao_global(f"❌ Erro: {str(ex)}", ft.Colors.RED_600)
 
-            def calcular_totais(registros):
-                tot_receita = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Receita")
-                tot_gasto = sum(float(r["valor"]) for r in registros if r.get("tipo") == "Gasto")
+            def calcular_totais(registros_filtrados):
+                tot_receita = sum(float(r["valor"]) for r in registros_filtrados if r.get("tipo") == "Receita")
+                tot_gasto = sum(float(r["valor"]) for r in registros_filtrados if r.get("tipo") == "Gasto")
 
                 try:
                     val_clean = txt_renda_base.value.strip().replace(".", "").replace(",", ".")
@@ -573,12 +577,12 @@ async def main(page: ft.Page):
 
                 lbl_receitas.value = f"Receitas: R$ {tot_receita:.2f}"
                 lbl_gastos.value = f"Gastos: R$ {tot_gasto:.2f}"
-                lbl_saldo.value = f"Saldo: R$ {saldo:.2f}"
+                lbl_saldo.value = f"Saldo do Mês: R$ {saldo:.2f}"
                 lbl_saldo.color = ft.Colors.GREEN_400 if saldo >= 0 else ft.Colors.RED_400
 
-            def atualizar_grafico(registros):
+            def atualizar_grafico(registros_filtrados):
                 grafico_ui.controls.clear()
-                gastos = [r for r in registros if r.get("tipo", "Gasto") == "Gasto"]
+                gastos = [r for r in registros_filtrados if r.get("tipo", "Gasto") == "Gasto"]
                 tot_gasto = sum(float(r["valor"]) for r in gastos)
 
                 if tot_gasto == 0:
@@ -755,10 +759,36 @@ async def main(page: ft.Page):
 
                     termo_busca = txt_busca.value.lower() if txt_busca.value else ""
                     cat_filtro = dd_filtro.value
+                    mes_sel = str(dd_mes_relatorio.value).zfill(2)
+                    ano_sel = str(dd_ano_relatorio.value)
+
+                    registros_filtrados_mes = []
 
                     for item in registros:
                         desc = str(item.get("descricao", ""))
                         cat = str(item.get("categoria", ""))
+                        raw_data = item.get("created_at") or item.get("data")
+
+                        data_valida = True
+                        str_data_hora = ""
+                        if raw_data:
+                            try:
+                                dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
+                                m_str = str(dt.month).zfill(2)
+                                a_str = str(dt.year)
+                                str_data_hora = dt.strftime("%d/%m/%Y %H:%M")
+
+                                if m_str != mes_sel or a_str != ano_sel:
+                                    data_valida = False
+                            except Exception:
+                                str_data_hora = str(raw_data)
+                        else:
+                            str_data_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+                        if not data_valida:
+                            continue
+
+                        registros_filtrados_mes.append(item)
 
                         if termo_busca and termo_busca not in desc.lower():
                             continue
@@ -770,16 +800,6 @@ async def main(page: ft.Page):
                         valor = float(item.get("valor", 0))
                         cor_valor = ft.Colors.GREEN_400 if tipo == "Receita" else ft.Colors.RED_400
                         sinal = "+" if tipo == "Receita" else "-"
-
-                        raw_data = item.get("created_at") or item.get("data")
-                        if raw_data:
-                            try:
-                                dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00"))
-                                str_data_hora = dt.strftime("%d/%m/%Y %H:%M")
-                            except Exception:
-                                str_data_hora = str(raw_data)
-                        else:
-                            str_data_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
 
                         btn_deletar = ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
@@ -808,8 +828,17 @@ async def main(page: ft.Page):
                         )
                         lista_gastos_ui.controls.append(card_item)
 
-                    calcular_totais(registros)
-                    atualizar_grafico(registros)
+                    if not lista_gastos_ui.controls:
+                        lista_gastos_ui.controls.append(
+                            ft.Container(
+                                content=ft.Text("Nenhum lançamento para este mês até o momento.", color=ft.Colors.GREY_500, size=13),
+                                padding=15,
+                                alignment=ft.Alignment(0, 0)
+                            )
+                        )
+
+                    calcular_totais(registros_filtrados_mes)
+                    atualizar_grafico(registros_filtrados_mes)
                 except Exception as ex:
                     mostrar_notificacao_global(f"Erro ao carregar dados: {str(ex)}", ft.Colors.RED_600)
 
@@ -898,11 +927,25 @@ async def main(page: ft.Page):
                 icon=ft.Icons.ASSESSMENT
             )
 
+            btn_salvar_renda = ft.ElevatedButton(
+                "Salvar Renda", 
+                on_click=lambda e: asyncio.create_task(salvar_renda_base()),
+                icon=ft.Icons.SAVE
+            )
+
+            btn_refresh = ft.IconButton(
+                icon=ft.Icons.REFRESH,
+                tooltip="Atualizar Dados",
+                icon_color="#00FF66",
+                on_click=lambda e: asyncio.create_task(carregar_registros(e))
+            )
+
             header_app = ft.Row(
                 [
                     ft.Text("Perrut - Controle Financeiro", size=24, weight=ft.FontWeight.BOLD, color="#00FF66"),
                     ft.Row(
                         [
+                            btn_refresh,
                             ft.Text(f"👤 {user_email.split('@')[0]}", weight=ft.FontWeight.BOLD, size=13),
                             ft.TextButton("Sair", on_click=logout, style=ft.ButtonStyle(color=ft.Colors.RED_400))
                         ]
@@ -915,7 +958,7 @@ async def main(page: ft.Page):
                 [
                     header_app,
                     ft.Divider(color="#00FF66", height=1),
-                    ft.Row([txt_renda_base, ft.ElevatedButton("Atualizar", on_click=lambda e: asyncio.create_task(salvar_renda_base()))]),
+                    ft.Row([txt_renda_base, btn_salvar_renda]),
 
                     ft.Container(
                         content=ft.Row([
