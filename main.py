@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import flet as ft
 import asyncio
 from views.login_view import LoginView

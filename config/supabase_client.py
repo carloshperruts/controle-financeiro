@@ -2,8 +2,16 @@ import os
 from supabase import create_client, Client
 
 # Conexão centralizada do Supabase
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vmkkdenzkoqklvlulajo.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZta2tkZW56a29xa2x2bHVsYWpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzg4NDIsImV4cCI6MjEwMzk1NDg0Mn0.vdCNnUnrRCQJuBKme-YYm9FqnyyV_BZ3Wh077uckxYA")
+# As credenciais vêm SEMPRE do ambiente (.env local ou variáveis do Render).
+# Nunca deixe uma chave "escrita" aqui como valor reserva.
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "SUPABASE_URL e SUPABASE_KEY precisam estar definidas no .env (local) "
+        "ou nas variáveis de ambiente do Render (produção)."
+    )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
