@@ -2,3 +2,4 @@ flet
 matplotlib
 supabase
 requests
+python-dotenv
