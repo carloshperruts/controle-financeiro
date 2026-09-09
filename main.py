@@ -30,8 +30,13 @@ async def main(page: ft.Page):
         await carregar_dashboard()
 
     async def carregar_dashboard():
-        dashboard = DashboardView(page, sessao_usuario, fechar_sessao)
-        await dashboard.inicializar()
+        import traceback
+        try:
+            dashboard = DashboardView(page, sessao_usuario, fechar_sessao)
+            await dashboard.inicializar()
+        except Exception:
+            print("=== ERRO REAL AO CARREGAR O DASHBOARD ===")
+            traceback.print_exc()
 
     def exibir_login():
         login_screen = LoginView(page, login_sucesso)

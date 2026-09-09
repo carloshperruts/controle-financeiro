@@ -41,15 +41,25 @@ class DashboardView:
             label="Parcelas",
             options=[ft.dropdown.Option(f"{i}x") for i in range(1, 13)],
             value="1x",
-            width=100
+            width=100,
+            visible=False
         )
         self.dd_venc = ft.Dropdown(
-            label="Vencimento",
+            label="Vencimento Dia",
             options=[ft.dropdown.Option(f"Dia {i}") for i in range(1, 32)],
             value="Dia 10",
-            width=120
+            width=130,
+            visible=False
         )
-
+        self.dd_venc_mes = ft.Dropdown(
+            label="Vencimento Mês",
+            options=[ft.dropdown.Option(m) for m in MESES_NOMES],
+            value=MESES_NOMES[datetime.now().month - 1],
+            width=160,
+            visible=False
+        )
+        # Só mostra Parcelas/Vencimento quando a forma de pagamento for Cartão de Crédito
+        self.dd_forma.on_select = self.atualizar_visibilidade_parcelas
         # Filtros
         mes_atual_idx = datetime.now().month - 1
         self.dd_mes_relatorio = ft.Dropdown(
@@ -59,7 +69,7 @@ class DashboardView:
             width=150
         )
         self.dd_mes_relatorio.on_select = lambda _: self.renderizar_registros()
-
+        
         self.dd_ano_relatorio = ft.Dropdown(
             label="Ano",
             options=[ft.dropdown.Option(str(a)) for a in range(2024, 2031)],
@@ -141,6 +151,14 @@ class DashboardView:
         except Exception as err:
             self.mostrar_snack(f"Erro ao carregar lançamentos: {str(err)}", True)
 
+    def atualizar_visibilidade_parcelas(self, e=None):
+        """Mostra os campos de Parcelas/Vencimento só quando a forma de pagamento é Cartão de Crédito."""
+        eh_credito = self.dd_forma.value == "Cartão de Crédito"
+        self.dd_parc.visible = eh_credito
+        self.dd_venc.visible = eh_credito
+        self.dd_venc_mes.visible = eh_credito
+        self.page.update()
+
     async def adicionar_registro(self, tipo):
         user = self.sessao_usuario.get("user")
         if not user or not self.txt_desc.value or not self.txt_val.value:
@@ -148,13 +166,24 @@ class DashboardView:
             return
         try:
             val_total = float(self.txt_val.value.replace(".", "").replace(",", "."))
-            num_parcelas = int(self.dd_parc.value.replace("x", "")) if self.dd_forma.value == "Cartão de Crédito" else 1
-            venc_dia = self.dd_venc.value.replace("Dia ", "") if self.dd_forma.value == "Cartão de Crédito" else None
-            
+            eh_credito = self.dd_forma.value == "Cartão de Crédito"
+            num_parcelas = int(self.dd_parc.value.replace("x", "")) if eh_credito else 1
+            venc_dia = self.dd_venc.value.replace("Dia ", "") if eh_credito else None
+
             valor_parcela = round(val_total / num_parcelas, 2)
             novos_registros = []
 
-            dt_base = datetime.now()
+            if eh_credito:
+                # Usa o Dia/Mês de Vencimento escolhidos como base da 1ª parcela
+                dia_base = min(int(venc_dia), 28)
+                mes_base = MESES_NOMES.index(self.dd_venc_mes.value) + 1
+                ano_base = datetime.now().year
+                # Se o mês escolhido já passou este ano, assume que é pro próximo ano
+                if mes_base < datetime.now().month:
+                    ano_base += 1
+                dt_base = datetime(ano_base, mes_base, dia_base)
+            else:
+                dt_base = datetime.now()
 
             for i in range(num_parcelas):
                 desc_final = self.txt_desc.value
@@ -182,6 +211,7 @@ class DashboardView:
             self.txt_desc.value = ""
             self.txt_val.value = ""
             self.dd_parc.value = "1x"
+            self.dd_venc_mes.value = MESES_NOMES[datetime.now().month - 1]
             self.mostrar_snack(f"{tipo} adicionada com sucesso ({num_parcelas}x)!")
             await self.carregar_registros()
         except Exception as err:
@@ -526,7 +556,7 @@ class DashboardView:
                 ft.Text("➕ Novo Lançamento", size=16, weight=ft.FontWeight.BOLD),
                 self.txt_desc,
                 ft.Row([self.txt_val, self.dd_cat, self.dd_forma], wrap=True),
-                ft.Row([self.dd_parc, self.dd_venc], wrap=True),
+                ft.Row([self.dd_parc, self.dd_venc, self.dd_venc_mes], wrap=True),
                 ft.Row([
                     ft.ElevatedButton("Adicionar Receita", icon=ft.Icons.ADD_CIRCLE_OUTLINE, bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Receita"))),
                     ft.ElevatedButton("Adicionar Despesa", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE, bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Despesa"))),
