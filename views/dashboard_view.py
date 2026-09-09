@@ -94,6 +94,12 @@ class DashboardView:
         self.grafico_ui = ft.Column()
         self.lista_gastos_ui = ft.Column()
 
+        # Cria UMA ÚNICA vez o snackbar e o diálogo de relatório, reaproveitados
+        # em cada chamada (em vez de criar um novo componente a cada clique,
+        # o que fazia a página acumular controles escondidos com o tempo)
+        self.snack = ft.SnackBar(content=ft.Text(""), bgcolor=ft.Colors.GREEN_700)
+        self.dlg_relatorio = ft.AlertDialog(title=ft.Text(""), content=ft.Container())
+
     async def carregar_renda_usuario(self):
         user = self.sessao_usuario.get("user")
         if not user:
@@ -182,8 +188,11 @@ class DashboardView:
             self.mostrar_snack(f"Erro ao adicionar: {str(err)}", True)
 
     async def deletar_registro(self, reg_id):
+        user = self.sessao_usuario.get("user")
+        if not user:
+            return
         try:
-            supabase.table("gastos").delete().eq("id", reg_id).execute()
+            supabase.table("gastos").delete().eq("id", reg_id).eq("user_id", user.id).execute()
             self.mostrar_snack("Lançamento excluído!")
             await self.carregar_registros()
         except Exception as err:
@@ -206,43 +215,51 @@ class DashboardView:
 
     def obter_cor_categoria(self, cat):
         cores = {
-            "Lazer": ft.Colors.GREEN_400,
-            "Outros": ft.Colors.AMBER_400,
-            "Dívidas & Empréstimos": ft.Colors.PURPLE_300,
             "Alimentação": ft.Colors.CYAN_400,
-            "Transporte": ft.Colors.BLUE_400,
-            "Assinaturas & Serviços": ft.Colors.ORANGE_400,
             "Moradia": ft.Colors.RED_300,
-            "Rendimento & Salário": ft.Colors.GREEN_400
+            "Transporte": ft.Colors.BLUE_400,
+            "Saúde & Bem-Estar": ft.Colors.PINK_300,
+            "Educação": ft.Colors.INDIGO_300,
+            "Lazer & Viagens": ft.Colors.GREEN_400,
+            "Assinaturas & Serviços": ft.Colors.ORANGE_400,
+            "Compras & Vestuário": ft.Colors.YELLOW_400,
+            "Dívidas & Empréstimos": ft.Colors.PURPLE_300,
+            "Investimentos & Reserva": ft.Colors.TEAL_400,
+            "Rendimento & Salário": ft.Colors.GREEN_400,
+            "Outros": ft.Colors.AMBER_400,
         }
         return cores.get(cat, ft.Colors.GREY_400)
 
     def atualizar_grafico(self, filtrados):
         self.grafico_ui.controls.clear()
-        totais = {}
-        total_geral = 0.0
 
-        for item in filtrados:
-            cat = item.get("categoria", "Outros")
-            try:
-                val = float(item.get("valor", 0))
-            except (ValueError, TypeError):
-                val = 0.0
-            
-            totais[cat] = totais.get(cat, 0.0) + val
-            total_geral += val
+        # Separa receitas e despesas ANTES de calcular as porcentagens,
+        # pra não misturar "dinheiro entrando" com "dinheiro saindo" no mesmo gráfico
+        despesas = [i for i in filtrados if i.get("tipo") == "Despesa"]
+        receitas = [i for i in filtrados if i.get("tipo") == "Receita"]
 
-        if total_geral > 0:
-            self.grafico_ui.controls.append(
-                ft.Text("📊 Distribuição de Receitas/Despesas Por Categoria", weight=ft.FontWeight.BOLD, size=16)
-            )
+        def montar_bloco(titulo, itens):
+            totais = {}
+            total_geral = 0.0
+            for item in itens:
+                cat = item.get("categoria", "Outros")
+                try:
+                    val = float(item.get("valor", 0))
+                except (ValueError, TypeError):
+                    val = 0.0
+                totais[cat] = totais.get(cat, 0.0) + val
+                total_geral += val
+
+            if total_geral <= 0:
+                return None
+
+            bloco = [ft.Text(titulo, weight=ft.FontWeight.BOLD, size=16)]
             for cat, val in totais.items():
                 if val <= 0:
                     continue
                 pct = max(0.0, min(1.0, val / total_geral))
                 cor_cat = self.obter_cor_categoria(cat)
-
-                self.grafico_ui.controls.append(
+                bloco.append(
                     ft.Column([
                         ft.Row([
                             ft.Text(cat, weight=ft.FontWeight.BOLD),
@@ -251,6 +268,17 @@ class DashboardView:
                         ft.ProgressBar(value=pct, color=cor_cat, height=8)
                     ], spacing=2)
                 )
+            return bloco
+
+        bloco_despesas = montar_bloco("📊 Distribuição de Despesas Por Categoria", despesas)
+        bloco_receitas = montar_bloco("💰 Distribuição de Receitas Por Categoria", receitas)
+
+        if bloco_despesas:
+            self.grafico_ui.controls.extend(bloco_despesas)
+        if bloco_receitas:
+            if bloco_despesas:
+                self.grafico_ui.controls.append(ft.Divider(height=15))
+            self.grafico_ui.controls.extend(bloco_receitas)
 
     def renderizar_registros(self):
         self.lista_gastos_ui.controls.clear()
@@ -340,8 +368,7 @@ class DashboardView:
         self.mostrar_snack(msg, not sucesso)
         if sucesso and url_download:
             # Abre o link numa nova aba, o que faz o navegador baixar o CSV
-            # (launch_url agora é assíncrono nessa versão do Flet, por isso o asyncio.create_task)
-            asyncio.create_task(self.page.launch_url(url_download))
+            self.page.launch_url(url_download)
 
     def abrir_relatorio_mensal(self, e):
         mes_nome_sel = self.dd_mes_relatorio.value
@@ -415,26 +442,24 @@ class DashboardView:
             )
             lista_itens.controls.append(item_row)
 
-        dlg = ft.AlertDialog(
-            title=ft.Row([
-                ft.Text("📋", size=20),
-                ft.Text(f"Relatório Mensal: {mes_num_sel}/{ano_sel}", weight=ft.FontWeight.BOLD, size=18)
-            ]),
-            content=ft.Container(
-                content=ft.Column([
-                    card_resultado,
-                    ft.Divider(height=10),
-                    resumo_valores,
-                    ft.Divider(height=10),
-                    ft.Text("Lançamentos do Mês:", weight=ft.FontWeight.BOLD, size=14),
-                    lista_itens
-                ], tight=True),
-                width=400
-            ),
-            actions=[ft.TextButton("Fechar", on_click=lambda _: self.fechar_dialogo(dlg))]
+        # Reaproveita o mesmo AlertDialog, só atualizando título/conteúdo
+        self.dlg_relatorio.title = ft.Row([
+            ft.Text("📋", size=20),
+            ft.Text(f"Relatório Mensal: {mes_num_sel}/{ano_sel}", weight=ft.FontWeight.BOLD, size=18)
+        ])
+        self.dlg_relatorio.content = ft.Container(
+            content=ft.Column([
+                card_resultado,
+                ft.Divider(height=10),
+                resumo_valores,
+                ft.Divider(height=10),
+                ft.Text("Lançamentos do Mês:", weight=ft.FontWeight.BOLD, size=14),
+                lista_itens
+            ], tight=True),
+            width=400
         )
-        self.page.overlay.append(dlg)
-        dlg.open = True
+        self.dlg_relatorio.actions = [ft.TextButton("Fechar", on_click=lambda _: self.fechar_dialogo(self.dlg_relatorio))]
+        self.dlg_relatorio.open = True
         self.page.update()
 
     def fechar_dialogo(self, dlg):
@@ -445,15 +470,12 @@ class DashboardView:
         if cor_bg is None:
             cor_bg = ft.Colors.RED_700 if e_erro else ft.Colors.GREEN_700
 
-        snack = ft.SnackBar(
-            content=ft.Row([
-                ft.Icon(ft.Icons.SYNC, color=ft.Colors.WHITE) if "Sincronizando" in msg else ft.Container(),
-                ft.Text(msg, color=ft.Colors.WHITE)
-            ]),
-            bgcolor=cor_bg
-        )
-        self.page.overlay.append(snack)
-        snack.open = True
+        self.snack.content = ft.Row([
+            ft.Icon(ft.Icons.SYNC, color=ft.Colors.WHITE) if "Sincronizando" in msg else ft.Container(),
+            ft.Text(msg, color=ft.Colors.WHITE)
+        ])
+        self.snack.bgcolor = cor_bg
+        self.snack.open = True
         self.page.update()
 
     async def inicializar(self):
@@ -535,6 +557,12 @@ class DashboardView:
             ft.Text("📋 Registros do Mês", weight=ft.FontWeight.BOLD, size=16),
             self.lista_gastos_ui
         )
+
+        # Registra o snackbar e o diálogo de relatório uma única vez no overlay da página
+        if self.snack not in self.page.overlay:
+            self.page.overlay.append(self.snack)
+        if self.dlg_relatorio not in self.page.overlay:
+            self.page.overlay.append(self.dlg_relatorio)
 
         await self.carregar_renda_usuario()
         await self.carregar_registros()

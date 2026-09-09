@@ -21,6 +21,7 @@ async def main(page: ft.Page):
     async def fechar_sessao():
         sessao_usuario["user"] = None
         sessao_usuario["session"] = None
+        page.overlay.clear()  # limpa snackbars/diálogos da sessão anterior
         exibir_login()
 
     async def login_sucesso(user, session):
