@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -39,4 +40,6 @@ async def main(page: ft.Page):
     exibir_login()
 
 if __name__ == "__main__":
-    ft.run(main)
+    # Garante que a pasta pública onde os relatórios exportados ficam existe
+    os.makedirs(os.path.join(os.getcwd(), "assets", "exports"), exist_ok=True)
+    ft.run(main, assets_dir="assets")

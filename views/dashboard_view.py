@@ -336,8 +336,12 @@ class DashboardView:
     def acao_exportar_csv(self, e):
         mes_nome_sel = self.dd_mes_relatorio.value
         mes_num_sel = str(MESES_NOMES.index(mes_nome_sel) + 1).zfill(2) if mes_nome_sel in MESES_NOMES else "09"
-        sucesso, msg = exportar_para_csv(self.registros_cache, mes_num_sel, self.dd_ano_relatorio.value)
+        sucesso, msg, url_download = exportar_para_csv(self.registros_cache, mes_num_sel, self.dd_ano_relatorio.value)
         self.mostrar_snack(msg, not sucesso)
+        if sucesso and url_download:
+            # Abre o link numa nova aba, o que faz o navegador baixar o CSV
+            # (launch_url agora é assíncrono nessa versão do Flet, por isso o asyncio.create_task)
+            asyncio.create_task(self.page.launch_url(url_download))
 
     def abrir_relatorio_mensal(self, e):
         mes_nome_sel = self.dd_mes_relatorio.value

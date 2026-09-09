@@ -4,6 +4,12 @@ import asyncio
 
 def criar_fundo_matrix_animado(page: ft.Page):
     """Cria a animação de fundo estilo Matrix em código caindo."""
+    # Cancela qualquer animação anterior ainda rodando em segundo plano,
+    # evitando que várias animações se acumulem ao trocar de tela (login/cadastro/etc.)
+    tarefa_anterior = getattr(page, "_matrix_bg_task", None)
+    if tarefa_anterior:
+        tarefa_anterior.cancel()
+
     chars = "01PERRUT$#@%&*+-="
     num_columns = 16
     column_controls = []
@@ -38,5 +44,7 @@ def criar_fundo_matrix_animado(page: ft.Page):
             except Exception:
                 break
 
-    asyncio.create_task(animar())
+    # Guarda a referência da tarefa na própria página, pra poder cancelá-la
+    # da próxima vez que essa função for chamada
+    page._matrix_bg_task = asyncio.create_task(animar())
     return rain_row

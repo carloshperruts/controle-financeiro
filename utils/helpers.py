@@ -1,5 +1,6 @@
 import os
 import csv
+import uuid
 from datetime import datetime
 
 def obter_mes_ano_efetivo(item):
@@ -23,11 +24,17 @@ def obter_mes_ano_efetivo(item):
 
 def exportar_para_csv(registros_cache, mes_sel, ano_sel):
     """
-    Gera o arquivo CSV com os registros do mês/ano selecionado
-    e salva diretamente na pasta Downloads do usuário.
+    Gera o arquivo CSV com os registros do mês/ano selecionado.
+
+    Importante: como o app roda num servidor (Render), não faz sentido salvar
+    o arquivo na pasta "Downloads" do servidor — quem usa o site pelo navegador
+    nunca teria acesso a ele. Em vez disso, o arquivo é salvo numa subpasta
+    dentro de 'assets' (que o Flet expõe publicamente pela web), com um nome
+    aleatório e imprevisível, e devolvemos o link relativo pra abrir no navegador
+    (o próprio navegador do usuário faz o download a partir daí).
     """
     if not registros_cache:
-        return False, "⚠️ Nenhum registro para exportar!"
+        return False, "⚠️ Nenhum registro para exportar!", None
 
     mes_sel = str(mes_sel).zfill(2)
     ano_sel = str(ano_sel)
@@ -39,15 +46,18 @@ def exportar_para_csv(registros_cache, mes_sel, ano_sel):
     ]
 
     if not dados_filtrados:
-        return False, f"⚠️ Nenhum lançamento para o mês {mes_sel}/{ano_sel}!"
+        return False, f"⚠️ Nenhum lançamento para o mês {mes_sel}/{ano_sel}!", None
 
     try:
-        caminho_user = os.path.expanduser("~")
-        pasta_destino = os.path.join(caminho_user, "Downloads")
-        if not os.path.exists(pasta_destino):
-            pasta_destino = caminho_user
+        # Pasta pública dentro de 'assets', servida pelo próprio Flet
+        pasta_destino = os.path.join(os.getcwd(), "assets", "exports")
+        os.makedirs(pasta_destino, exist_ok=True)
 
-        caminho_completo = os.path.join(pasta_destino, f"Relatorio_Financeiro_{mes_sel}_{ano_sel}.csv")
+        # Nome de arquivo com um token aleatório, pra ninguém conseguir
+        # adivinhar/acessar o relatório exportado por outra pessoa
+        token = uuid.uuid4().hex[:12]
+        nome_arquivo = f"Relatorio_{mes_sel}_{ano_sel}_{token}.csv"
+        caminho_completo = os.path.join(pasta_destino, nome_arquivo)
 
         with open(caminho_completo, mode="w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f, delimiter=";")
@@ -63,6 +73,8 @@ def exportar_para_csv(registros_cache, mes_sel, ano_sel):
                     f"{float(item.get('valor', 0)):.2f}".replace(".", ",")
                 ])
 
-        return True, f"✔ Relatório salvo em: {caminho_completo}"
+        # Caminho relativo que o navegador consegue abrir/baixar direto
+        url_relativa = f"/exports/{nome_arquivo}"
+        return True, "✔ Relatório gerado! Iniciando o download...", url_relativa
     except Exception as err:
-        return False, f"❌ Erro ao exportar: {str(err)}"
+        return False, f"❌ Erro ao exportar: {str(err)}", None
