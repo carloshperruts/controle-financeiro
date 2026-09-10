@@ -6,6 +6,8 @@ import flet as ft
 import asyncio
 from views.login_view import LoginView
 from views.dashboard_view import DashboardView
+from utils.helpers import obter_sessao_local, limpar_sessao_local
+from config.supabase_client import supabase
 
 async def main(page: ft.Page):
     # Configurações gerais da janela
@@ -21,6 +23,7 @@ async def main(page: ft.Page):
     async def fechar_sessao():
         sessao_usuario["user"] = None
         sessao_usuario["session"] = None
+        await limpar_sessao_local(page)  # apaga o login salvo, se houver
         page.overlay.clear()  # limpa snackbars/diálogos da sessão anterior
         exibir_login()
 
@@ -42,8 +45,30 @@ async def main(page: ft.Page):
         login_screen = LoginView(page, login_sucesso)
         login_screen.renderizar()
 
-    # Inicia a aplicação na tela de login
-    exibir_login()
+    async def tentar_auto_login():
+        """Se existir um login salvo (checkbox 'Lembrar login'), tenta entrar direto."""
+        access_token, refresh_token = await obter_sessao_local(page)
+        if not access_token or not refresh_token:
+            exibir_login()
+            return
+
+        try:
+            def api_call():
+                return supabase.auth.set_session(access_token, refresh_token)
+
+            res = await asyncio.to_thread(api_call)
+            if res.user and res.session:
+                await login_sucesso(res.user, res.session)
+            else:
+                await limpar_sessao_local(page)
+                exibir_login()
+        except Exception:
+            # Token expirado/inválido: limpa o que estava salvo e pede login normal
+            await limpar_sessao_local(page)
+            exibir_login()
+
+    # Inicia a aplicação tentando restaurar o login salvo (se houver)
+    asyncio.create_task(tentar_auto_login())
 
 if __name__ == "__main__":
     # Garante que a pasta pública onde os relatórios exportados ficam existe

@@ -3,6 +3,26 @@ import csv
 import uuid
 from datetime import datetime
 
+# Chaves usadas no client_storage do Flet para o "Lembrar login"
+CHAVE_ACCESS_TOKEN = "perrut.auth.access_token"
+CHAVE_REFRESH_TOKEN = "perrut.auth.refresh_token"
+
+async def salvar_sessao_local(page, access_token, refresh_token):
+    """Guarda os tokens da sessão no armazenamento local do dispositivo."""
+    await page.shared_preferences.set(CHAVE_ACCESS_TOKEN, access_token)
+    await page.shared_preferences.set(CHAVE_REFRESH_TOKEN, refresh_token)
+
+async def limpar_sessao_local(page):
+    """Remove os tokens salvos (usado no logout ou se a sessão expirar)."""
+    await page.shared_preferences.remove(CHAVE_ACCESS_TOKEN)
+    await page.shared_preferences.remove(CHAVE_REFRESH_TOKEN)
+
+async def obter_sessao_local(page):
+    """Retorna (access_token, refresh_token) salvos, ou (None, None) se não houver."""
+    access_token = await page.shared_preferences.get(CHAVE_ACCESS_TOKEN)
+    refresh_token = await page.shared_preferences.get(CHAVE_REFRESH_TOKEN)
+    return access_token, refresh_token
+
 def obter_mes_ano_efetivo(item):
     """
     Calcula o mês e ano do lançamento.

@@ -2,6 +2,7 @@ import flet as ft
 import asyncio
 from config.supabase_client import supabase
 from components.matrix_bg import criar_fundo_matrix_animado
+from utils.helpers import salvar_sessao_local, limpar_sessao_local
 
 class LoginView:
     def __init__(self, page: ft.Page, ao_sucesso):
@@ -17,6 +18,12 @@ class LoginView:
         self.email_input = ft.TextField(label="E-mail", width=320, hint_text="exemplo@email.com")
         self.senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=320)
         self.confirmar_senha_input = ft.TextField(label="Confirmar Senha", password=True, can_reveal_password=True, width=320)
+        self.lembrar_login_check = ft.Checkbox(
+            label="Lembrar login",
+            value=False,
+            label_style=ft.TextStyle(size=13, color=ft.Colors.GREY_300),
+            scale=0.85,
+        )
 
         # Marca d'água visual
         self.watermark = ft.Container(
@@ -73,6 +80,10 @@ class LoginView:
             res = await asyncio.to_thread(api_call)
 
             if res.user and res.session:
+                if self.lembrar_login_check.value:
+                    await salvar_sessao_local(self.page, res.session.access_token, res.session.refresh_token)
+                else:
+                    await limpar_sessao_local(self.page)
                 await self.ao_sucesso(res.user, res.session)
             else:
                 self.msg_erro.value = "❌ Falha ao autenticar. Verifique seus dados."
@@ -144,6 +155,7 @@ class LoginView:
                 ft.Divider(color="#00FF66", height=15),
                 self.msg_erro, self.msg_sucesso,
                 self.email_input, self.senha_input,
+                ft.Container(content=self.lembrar_login_check, width=320, alignment=ft.Alignment(-1, 0)),
                 ft.TextButton("Esqueceu sua senha?", on_click=lambda _: self.mudar_modo("recuperar")),
                 ft.ElevatedButton("Entrar", width=150, bgcolor="#00AA44", color=ft.Colors.WHITE, on_click=lambda ev: asyncio.create_task(self.realizar_login(ev))),
                 ft.TextButton("Não tem uma conta? Cadastre-se aqui", on_click=lambda _: self.mudar_modo("cadastro")),
