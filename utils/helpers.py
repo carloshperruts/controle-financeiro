@@ -73,8 +73,8 @@ def exportar_para_csv(registros_cache, mes_sel, ano_sel):
                     f"{float(item.get('valor', 0)):.2f}".replace(".", ",")
                 ])
 
-        # Caminho relativo que o navegador consegue abrir/baixar direto
+        # Caminho relativo (usado quando o app roda como web, servido pelo Flet)
         url_relativa = f"/exports/{nome_arquivo}"
-        return True, "✔ Relatório gerado! Iniciando o download...", url_relativa
+        return True, "✔ Relatório gerado! Iniciando o download...", (url_relativa, caminho_completo)
     except Exception as err:
         return False, f"❌ Erro ao exportar: {str(err)}", None

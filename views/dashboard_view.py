@@ -434,13 +434,21 @@ class DashboardView:
         self.page.update()
 
     def acao_exportar_csv(self, e):
+        asyncio.create_task(self._acao_exportar_csv_async())
+
+    async def _acao_exportar_csv_async(self):
         mes_nome_sel = self.dd_mes_relatorio.value
         mes_num_sel = str(MESES_NOMES.index(mes_nome_sel) + 1).zfill(2) if mes_nome_sel in MESES_NOMES else "09"
-        sucesso, msg, url_download = exportar_para_csv(self.registros_cache, mes_num_sel, self.dd_ano_relatorio.value)
+        sucesso, msg, resultado = exportar_para_csv(self.registros_cache, mes_num_sel, self.dd_ano_relatorio.value)
         self.mostrar_snack(msg, not sucesso)
-        if sucesso and url_download:
-            # Abre o link numa nova aba, o que faz o navegador baixar o CSV
-            self.page.launch_url(url_download)
+        if sucesso and resultado:
+            url_relativa, caminho_completo = resultado
+            # Rodando como app web (Render, flet run --web): usa a rota servida pelo Flet.
+            # Rodando como app desktop: não existe servidor HTTP, então abre o arquivo local direto.
+            if self.page.web:
+                await self.page.launch_url(url_relativa)
+            else:
+                await self.page.launch_url(f"file:///{caminho_completo.replace(chr(92), '/')}")
 
     def abrir_relatorio_mensal(self, e):
         mes_nome_sel = self.dd_mes_relatorio.value
