@@ -46,13 +46,15 @@ async def main(page: ft.Page):
         login_screen.renderizar()
 
     async def tentar_auto_login():
-        """Se existir um login salvo (checkbox 'Lembrar login'), tenta entrar direto."""
-        access_token, refresh_token = await obter_sessao_local(page)
-        if not access_token or not refresh_token:
-            exibir_login()
-            return
-
+        """Se existir um login salvo (checkbox 'Lembrar login'), tenta entrar direto.
+        Qualquer falha aqui cai para a tela de login normal, nunca trava a tela."""
+        import traceback
         try:
+            access_token, refresh_token = await obter_sessao_local(page)
+            if not access_token or not refresh_token:
+                exibir_login()
+                return
+
             def api_call():
                 return supabase.auth.set_session(access_token, refresh_token)
 
@@ -63,8 +65,12 @@ async def main(page: ft.Page):
                 await limpar_sessao_local(page)
                 exibir_login()
         except Exception:
-            # Token expirado/inválido: limpa o que estava salvo e pede login normal
-            await limpar_sessao_local(page)
+            print("=== ERRO NO AUTO-LOGIN (caindo para tela de login normal) ===")
+            traceback.print_exc()
+            try:
+                await limpar_sessao_local(page)
+            except Exception:
+                pass
             exibir_login()
 
     # Inicia a aplicação tentando restaurar o login salvo (se houver)

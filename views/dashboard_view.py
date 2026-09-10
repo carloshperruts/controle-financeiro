@@ -22,20 +22,23 @@ class DashboardView:
         self.page.scroll = ft.ScrollMode.AUTO
 
         # Componentes UI
-        self.txt_renda = ft.TextField(label="Renda Base (R$)", value="0,00", width=200, keyboard_type=ft.KeyboardType.NUMBER)
+        self.txt_renda = ft.TextField(label="Renda Base (R$)", value="0,00", width=180, keyboard_type=ft.KeyboardType.NUMBER)
         self.lbl_saldo = ft.Text("Saldo do Mês: R$ 0.00", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
         self.lbl_receita = ft.Text("Receitas: R$ 0.00", color=ft.Colors.GREEN_400)
         self.lbl_despesa = ft.Text("Despesas: R$ 0.00", color=ft.Colors.RED_400)
 
         # Formulário
+        # Larguras reduzidas e Rows com wrap=True (na renderização) garantem que,
+        # em telas estreitas de celular/tablet, os campos quebrem para a linha de
+        # baixo em vez de ficarem espremidos ou cortados.
         self.txt_desc = ft.TextField(label="Descrição", expand=True)
-        self.txt_val = ft.TextField(label="Valor Total (R$)", width=150, keyboard_type=ft.KeyboardType.NUMBER)
-        self.dd_cat = ft.Dropdown(label="Categoria", options=[ft.dropdown.Option(c) for c in CATEGORIAS], value=CATEGORIAS[0], width=200)
+        self.txt_val = ft.TextField(label="Valor Total (R$)", width=140, keyboard_type=ft.KeyboardType.NUMBER)
+        self.dd_cat = ft.Dropdown(label="Categoria", options=[ft.dropdown.Option(c) for c in CATEGORIAS], value=CATEGORIAS[0], width=180)
         self.dd_forma = ft.Dropdown(
             label="Pagamento / Origem",
             options=[ft.dropdown.Option(f) for f in FORMAS_PAGAMENTO],
             value="Débito / Pix",
-            width=200
+            width=180
         )
         self.dd_parc = ft.Dropdown(
             label="Parcelas",
@@ -55,7 +58,7 @@ class DashboardView:
             label="Vencimento Mês",
             options=[ft.dropdown.Option(m) for m in MESES_NOMES],
             value=MESES_NOMES[datetime.now().month - 1],
-            width=160,
+            width=150,
             visible=False
         )
         # Só mostra Parcelas/Vencimento quando a forma de pagamento for Cartão de Crédito
@@ -81,23 +84,23 @@ class DashboardView:
         self.txt_busca = ft.TextField(
             label="Buscar", 
             prefix_icon=ft.Icons.SEARCH, 
-            expand=True, 
+            width=220,
             on_change=lambda _: self.renderizar_registros()
         )
 
         self.dd_filtro_cat = ft.Dropdown(
             label="Filtrar Categoria",
             options=[ft.dropdown.Option("Todas")] + [ft.dropdown.Option(c) for c in CATEGORIAS],
+            width=180,
             value="Todas",
-            width=180
         )
         self.dd_filtro_cat.on_select = lambda _: self.renderizar_registros()
 
         self.dd_filtro_forma = ft.Dropdown(
             label="Filtrar Pagamento",
             options=[ft.dropdown.Option("Todas")] + [ft.dropdown.Option(f) for f in FORMAS_PAGAMENTO],
+            width=180,
             value="Todas",
-            width=180
         )
         self.dd_filtro_forma.on_select = lambda _: self.renderizar_registros()
 
@@ -389,7 +392,7 @@ class DashboardView:
                 cor_val = ft.Colors.GREEN_400 if is_receita else ft.Colors.RED_400
                 sinal = "+" if is_receita else "-"
 
-                desc_linha = [ft.Text(desc, weight=ft.FontWeight.BOLD, size=14)]
+                desc_linha = [ft.Text(desc, weight=ft.FontWeight.BOLD, size=14, overflow=ft.TextOverflow.CLIP, no_wrap=False)]
                 if not is_receita and esta_pago:
                     desc_linha.append(
                         ft.Container(
@@ -420,12 +423,12 @@ class DashboardView:
                 card = ft.Container(
                     content=ft.Row([
                         ft.Column([
-                            ft.Row(desc_linha, spacing=8),
-                            ft.Text(detalles_str, size=12, color=ft.Colors.GREY_400),
+                            ft.Row(desc_linha, spacing=8, wrap=True),
+                            ft.Text(detalles_str, size=12, color=ft.Colors.GREY_400, no_wrap=False),
                         ], expand=True),
                         ft.Text(f"{sinal}R$ {val:.2f}", color=cor_val, weight=ft.FontWeight.BOLD, size=14),
                         ft.Row(botoes, spacing=0)
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8, margin=ft.Margin(0, 2, 0, 2),
                     opacity=0.55 if (not is_receita and esta_pago) else 1.0
                 )
@@ -490,7 +493,7 @@ class DashboardView:
             ft.Text(f"Renda: R$ {renda_base:.2f}", color=ft.Colors.WHITE, size=12),
             ft.Text(f"Receitas: R$ {total_rec:.2f}", color=ft.Colors.GREEN_400, size=12),
             ft.Text(f"Despesas: R$ {total_desp:.2f}", color=ft.Colors.RED_400, size=12),
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
 
         lista_itens = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO, height=200)
 
@@ -527,6 +530,10 @@ class DashboardView:
             ft.Text("📋", size=20),
             ft.Text(f"Relatório Mensal: {mes_num_sel}/{ano_sel}", weight=ft.FontWeight.BOLD, size=18)
         ])
+        # Largura do diálogo se ajusta a telas estreitas de celular/tablet,
+        # em vez de manter 400px fixos que transbordariam a tela
+        largura_tela = self.page.width or 800
+        largura_dialogo = min(400, largura_tela - 40)
         self.dlg_relatorio.content = ft.Container(
             content=ft.Column([
                 card_resultado,
@@ -535,8 +542,8 @@ class DashboardView:
                 ft.Divider(height=10),
                 ft.Text("Lançamentos do Mês:", weight=ft.FontWeight.BOLD, size=14),
                 lista_itens
-            ], tight=True),
-            width=400
+            ], tight=True, scroll=ft.ScrollMode.AUTO),
+            width=largura_dialogo
         )
         self.dlg_relatorio.actions = [ft.TextButton("Fechar", on_click=lambda _: self.fechar_dialogo(self.dlg_relatorio))]
         self.dlg_relatorio.open = True
@@ -589,14 +596,14 @@ class DashboardView:
             content=ft.Row([
                 self.txt_renda,
                 ft.ElevatedButton("Salvar Renda", bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, on_click=lambda e: asyncio.create_task(self.salvar_renda_usuario(e)))
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
             padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8
         )
 
         card_resumo = ft.Container(
             content=ft.Column([
                 self.lbl_saldo,
-                ft.Row([self.lbl_receita, self.lbl_despesa], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                ft.Row([self.lbl_receita, self.lbl_despesa], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
             ]),
             padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8
         )
@@ -610,7 +617,7 @@ class DashboardView:
                 ft.Row([
                     ft.ElevatedButton("Adicionar Receita", icon=ft.Icons.ADD_CIRCLE_OUTLINE, bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Receita"))),
                     ft.ElevatedButton("Adicionar Despesa", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE, bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Despesa"))),
-                ], alignment=ft.MainAxisAlignment.END)
+                ], alignment=ft.MainAxisAlignment.END, wrap=True)
             ]),
             padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8
         )
@@ -622,7 +629,7 @@ class DashboardView:
             ft.ElevatedButton("Exportar CSV", icon=ft.Icons.DOWNLOAD, on_click=self.acao_exportar_csv),
         ], wrap=True)
 
-        busca_e_categoria = ft.Row([self.txt_busca, self.dd_filtro_cat, self.dd_filtro_forma])
+        busca_e_categoria = ft.Row([self.txt_busca, self.dd_filtro_cat, self.dd_filtro_forma], wrap=True)
 
         self.page.add(
             header,

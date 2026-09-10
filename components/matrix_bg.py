@@ -12,12 +12,25 @@ def criar_fundo_matrix_animado(page: ft.Page, num_colunas: int = 20, altura_tril
     caracteres caem continuamente, cada uma com uma "cabeça" bem clara na
     frente e um rastro verde que vai apagando conforme se afasta dela.
 
+    Em telas estreitas (celular/tablet), usa menos colunas para não
+    espremer/sobrepor os caracteres — é isso que causava o efeito de
+    "letras embaralhadas" no fundo em telas pequenas.
+
     Cancela qualquer animação anterior ainda rodando em segundo plano,
     evitando que várias animações se acumulem ao trocar de tela (login/cadastro/etc.).
     """
     tarefa_anterior = getattr(page, "_matrix_bg_task", None)
     if tarefa_anterior:
         tarefa_anterior.cancel()
+
+    try:
+        largura_tela = page.width or 1200
+    except Exception:
+        largura_tela = 1200
+    if largura_tela < 500:
+        num_colunas = 8
+    elif largura_tela < 900:
+        num_colunas = 14
 
     colunas = []      # uma lista de células (ft.Text) por coluna
     posicoes = []      # posição atual da "cabeça" de cada coluna (pode ser negativa = ainda não entrou na tela)

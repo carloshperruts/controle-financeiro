@@ -18,10 +18,14 @@ async def limpar_sessao_local(page):
     await page.shared_preferences.remove(CHAVE_REFRESH_TOKEN)
 
 async def obter_sessao_local(page):
-    """Retorna (access_token, refresh_token) salvos, ou (None, None) se não houver."""
-    access_token = await page.shared_preferences.get(CHAVE_ACCESS_TOKEN)
-    refresh_token = await page.shared_preferences.get(CHAVE_REFRESH_TOKEN)
-    return access_token, refresh_token
+    """Retorna (access_token, refresh_token) salvos, ou (None, None) se não houver
+    ou se a leitura falhar por qualquer motivo (ex.: chave inexistente)."""
+    try:
+        access_token = await page.shared_preferences.get(CHAVE_ACCESS_TOKEN)
+        refresh_token = await page.shared_preferences.get(CHAVE_REFRESH_TOKEN)
+        return access_token, refresh_token
+    except Exception:
+        return None, None
 
 def obter_mes_ano_efetivo(item):
     """

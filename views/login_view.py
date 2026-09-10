@@ -15,9 +15,11 @@ class LoginView:
         self.msg_sucesso = ft.Text("", color=ft.Colors.GREEN_400, size=13, weight=ft.FontWeight.BOLD)
 
         # Campos do formulário
-        self.email_input = ft.TextField(label="E-mail", width=320, hint_text="exemplo@email.com")
-        self.senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=320)
-        self.confirmar_senha_input = ft.TextField(label="Confirmar Senha", password=True, can_reveal_password=True, width=320)
+        # Sem width fixo aqui: a largura é aplicada dinamicamente em renderizar(),
+        # de acordo com o tamanho da tela (celular/tablet/desktop).
+        self.email_input = ft.TextField(label="E-mail", hint_text="exemplo@email.com")
+        self.senha_input = ft.TextField(label="Senha", password=True, can_reveal_password=True)
+        self.confirmar_senha_input = ft.TextField(label="Confirmar Senha", password=True, can_reveal_password=True)
         self.lembrar_login_check = ft.Checkbox(
             label="Lembrar login",
             value=False,
@@ -51,8 +53,7 @@ class LoginView:
                 ft.BorderSide(1, "#00FF66"),
                 ft.BorderSide(1, "#00FF66")
             ),
-            border_radius=8,
-            width=320
+            border_radius=8
         )
 
         self.titulo_auth = ft.Text("Perrut - Controle Financeiro", size=24, weight=ft.FontWeight.BOLD, color="#00FF66")
@@ -148,6 +149,19 @@ class LoginView:
     def renderizar(self):
         self.page.clean()
 
+        # Largura responsiva do formulário: 380px em telas grandes, mas encolhe
+        # para caber com folga em telas de celular/tablet (evita cortar campos)
+        try:
+            largura_tela = self.page.width or 1200
+        except Exception:
+            largura_tela = 1200
+        largura_form = min(380, largura_tela - 40)
+
+        self.email_input.width = largura_form
+        self.senha_input.width = largura_form
+        self.confirmar_senha_input.width = largura_form
+        self.dicas_cadastro.width = largura_form
+
         if self.modo_auth == "login":
             conteudo = [
                 self.titulo_auth,
@@ -155,7 +169,7 @@ class LoginView:
                 ft.Divider(color="#00FF66", height=15),
                 self.msg_erro, self.msg_sucesso,
                 self.email_input, self.senha_input,
-                ft.Container(content=self.lembrar_login_check, width=320, alignment=ft.Alignment(-1, 0)),
+                ft.Container(content=self.lembrar_login_check, width=largura_form, alignment=ft.Alignment(-1, 0)),
                 ft.TextButton("Esqueceu sua senha?", on_click=lambda _: self.mudar_modo("recuperar")),
                 ft.ElevatedButton("Entrar", width=150, bgcolor="#00AA44", color=ft.Colors.WHITE, on_click=lambda ev: asyncio.create_task(self.realizar_login(ev))),
                 ft.TextButton("Não tem uma conta? Cadastre-se aqui", on_click=lambda _: self.mudar_modo("cadastro")),
@@ -185,9 +199,15 @@ class LoginView:
             ft.Stack([
                 criar_fundo_matrix_animado(self.page),
                 ft.Container(
-                    content=ft.Column(conteudo, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                    content=ft.Column(
+                        conteudo,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=10,
+                    ),
                     alignment=ft.Alignment(0, 0),
-                    padding=20
+                    padding=20,
+                    expand=True,
                 )
             ], expand=True)
         )
