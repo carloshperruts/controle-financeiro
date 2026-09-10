@@ -547,10 +547,14 @@ class DashboardView:
         )
         self.dlg_relatorio.actions = [ft.TextButton("Fechar", on_click=lambda _: self.fechar_dialogo(self.dlg_relatorio))]
         self.dlg_relatorio.open = True
+        # Mesmo motivo do snackbar: no Flet 1.0 é preciso chamar show_dialog()
+        # explicitamente para o AlertDialog realmente aparecer na tela.
+        self.page.show_dialog(self.dlg_relatorio)
         self.page.update()
 
     def fechar_dialogo(self, dlg):
         dlg.open = False
+        self.page.pop_dialog()
         self.page.update()
 
     def mostrar_snack(self, msg, e_erro=False, cor_bg=None):
@@ -563,6 +567,9 @@ class DashboardView:
         ])
         self.snack.bgcolor = cor_bg
         self.snack.open = True
+        # No Flet 1.0, apenas marcar open=True não basta: é preciso pedir
+        # explicitamente para exibir o overlay com page.show_dialog().
+        self.page.show_dialog(self.snack)
         self.page.update()
 
     async def inicializar(self):
