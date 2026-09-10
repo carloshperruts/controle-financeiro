@@ -101,4 +101,4 @@ def exportar_para_csv(registros_cache, mes_sel, ano_sel):
         url_relativa = f"/exports/{nome_arquivo}"
         return True, "✔ Relatório gerado! Iniciando o download...", (url_relativa, caminho_completo)
     except Exception as err:
-        return False, f"❌ Erro ao exportar: {str(err)}", None
+        return False, f"❌ Erro ao exportar: {str(err)}", None  
