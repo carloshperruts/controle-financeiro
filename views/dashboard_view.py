@@ -69,7 +69,7 @@ class DashboardView:
             width=150
         )
         self.dd_mes_relatorio.on_select = lambda _: self.renderizar_registros()
-        
+
         self.dd_ano_relatorio = ft.Dropdown(
             label="Ano",
             options=[ft.dropdown.Option(str(a)) for a in range(2024, 2031)],
@@ -228,6 +228,23 @@ class DashboardView:
         except Exception as err:
             self.mostrar_snack(f"Erro ao excluir: {str(err)}", True)
 
+    async def alternar_pago(self, reg_id, novo_status):
+        """Marca/desmarca uma despesa como paga, sem excluir o registro do histórico."""
+        user = self.sessao_usuario.get("user")
+        if not user:
+            return
+        try:
+            supabase.table("gastos").update({"pago": novo_status}).eq("id", reg_id).eq("user_id", user.id).execute()
+            # Atualiza direto no cache local, sem precisar buscar tudo de novo no servidor
+            for item in self.registros_cache:
+                if item.get("id") == reg_id:
+                    item["pago"] = novo_status
+                    break
+            self.renderizar_registros()
+            self.mostrar_snack("Despesa marcada como paga!" if novo_status else "Despesa marcada como não paga.")
+        except Exception as err:
+            self.mostrar_snack(f"Erro ao atualizar status: {str(err)}", True)
+
     def calcular_totais(self, filtrados):
         try:
             renda_base = float(self.txt_renda.value.replace(".", "").replace(",", "."))
@@ -368,24 +385,49 @@ class DashboardView:
                     detalles_str += f" • Vencimento: Dia {venc}"
 
                 is_receita = tipo == "Receita"
+                esta_pago = item.get("pago", False)
                 cor_val = ft.Colors.GREEN_400 if is_receita else ft.Colors.RED_400
                 sinal = "+" if is_receita else "-"
+
+                desc_linha = [ft.Text(desc, weight=ft.FontWeight.BOLD, size=14)]
+                if not is_receita and esta_pago:
+                    desc_linha.append(
+                        ft.Container(
+                            content=ft.Text("PAGA", size=10, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                            bgcolor=ft.Colors.GREEN_700, padding=ft.Padding(6, 1, 6, 1), border_radius=4
+                        )
+                    )
+
+                botoes = []
+                if not is_receita:
+                    botoes.append(
+                        ft.IconButton(
+                            icon=ft.Icons.CHECK_CIRCLE if esta_pago else ft.Icons.RADIO_BUTTON_UNCHECKED,
+                            icon_color=ft.Colors.GREEN_400 if esta_pago else ft.Colors.GREY_500,
+                            tooltip="Marcar como não paga" if esta_pago else "Marcar como paga",
+                            on_click=lambda _, r_id=reg_id, atual=esta_pago: asyncio.create_task(self.alternar_pago(r_id, not atual))
+                        )
+                    )
+                botoes.append(
+                    ft.IconButton(
+                        icon=ft.Icons.DELETE_OUTLINE,
+                        icon_color=ft.Colors.RED_400,
+                        tooltip="Excluir",
+                        on_click=lambda _, r_id=reg_id: asyncio.create_task(self.deletar_registro(r_id))
+                    )
+                )
 
                 card = ft.Container(
                     content=ft.Row([
                         ft.Column([
-                            ft.Text(desc, weight=ft.FontWeight.BOLD, size=14),
+                            ft.Row(desc_linha, spacing=8),
                             ft.Text(detalles_str, size=12, color=ft.Colors.GREY_400),
                         ], expand=True),
                         ft.Text(f"{sinal}R$ {val:.2f}", color=cor_val, weight=ft.FontWeight.BOLD, size=14),
-                        ft.IconButton(
-                            icon=ft.Icons.DELETE_OUTLINE,
-                            icon_color=ft.Colors.RED_400,
-                            tooltip="Excluir",
-                            on_click=lambda _, r_id=reg_id: asyncio.create_task(self.deletar_registro(r_id))
-                        )
+                        ft.Row(botoes, spacing=0)
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8, margin=ft.Margin(0, 2, 0, 2)
+                    padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8, margin=ft.Margin(0, 2, 0, 2),
+                    opacity=0.55 if (not is_receita and esta_pago) else 1.0
                 )
                 self.lista_gastos_ui.controls.append(card)
 
