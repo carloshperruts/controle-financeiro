@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime
 from config.supabase_client import supabase, CATEGORIAS
 from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, parse_valor_br
+from views.dashboard_ui import montar_dashboard
 
 MESES_NOMES = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -577,101 +578,7 @@ class DashboardView:
     async def inicializar(self):
         self.page.controls.clear()
 
-        user = self.sessao_usuario.get("user")
-        email_str = user.email if user else ""
-
-        header = ft.Row([
-            ft.Column([
-                ft.Text("Perrut - Painel Financeiro", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
-                ft.Text(f"Usuário: {email_str}", color=ft.Colors.GREY_400, size=12),
-            ]),
-            ft.Row([
-                ft.IconButton(
-                    icon=ft.Icons.REFRESH, 
-                    icon_color=ft.Colors.GREEN_400, 
-                    tooltip="Atualizar", 
-                    on_click=lambda e: asyncio.create_task(self.atualizar_manual(e))
-                ),
-                ft.IconButton(
-                    icon=ft.Icons.LOGOUT, 
-                    tooltip="Sair", 
-                    icon_color=ft.Colors.RED_400, 
-                    on_click=lambda _: asyncio.create_task(self.fechar_sessao_cb())
-                ),
-            ])
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
-
-        card_renda = ft.Container(
-            content=ft.Row([
-                self.txt_renda,
-                ft.ElevatedButton("Salvar Renda", bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, on_click=lambda e: asyncio.create_task(self.salvar_renda_usuario(e)))
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
-            padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8
-        )
-
-        card_resumo = ft.Container(
-            content=ft.Column([
-                self.lbl_saldo,
-                ft.Row([self.lbl_receita, self.lbl_despesa], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
-            ]),
-            padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8
-        )
-
-        form_lancamento = ft.Container(
-            content=ft.Column([
-                ft.Text("➕ Novo Lançamento", size=16, weight=ft.FontWeight.BOLD),
-                self.txt_desc,
-                ft.Row([self.txt_val, self.dd_cat, self.dd_forma], wrap=True),
-                ft.Row([self.dd_parc, self.dd_venc, self.dd_venc_mes], wrap=True),
-                ft.Row([
-                    ft.ElevatedButton("Adicionar Receita", icon=ft.Icons.ADD_CIRCLE_OUTLINE, bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Receita"))),
-                    ft.ElevatedButton("Adicionar Despesa", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE, bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE, on_click=lambda _: asyncio.create_task(self.adicionar_registro("Despesa"))),
-                ], alignment=ft.MainAxisAlignment.END, wrap=True)
-            ]),
-            padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8
-        )
-
-        barra_filtros = ft.Row([
-            self.dd_mes_relatorio,
-            self.dd_ano_relatorio,
-            ft.ElevatedButton("Relatório", icon=ft.Icons.ASSESSMENT, on_click=self.abrir_relatorio_mensal),
-            ft.ElevatedButton("Exportar CSV", icon=ft.Icons.DOWNLOAD, on_click=self.acao_exportar_csv),
-        ], wrap=True)
-
-        busca_e_categoria = ft.Row([self.txt_busca, self.dd_filtro_cat, self.dd_filtro_forma], wrap=True)
-
-        rodape = ft.Container(
-            content=ft.Row(
-                [
-                    ft.Text("Desenvolvido por Carlos Perrut", size=12, color=ft.Colors.GREY_500),
-                    ft.Text("•", size=12, color=ft.Colors.GREY_700),
-                    ft.TextButton(
-                        "GitHub",
-                        icon=ft.Icons.CODE,
-                        url="https://github.com/carloshperruts",
-                        style=ft.ButtonStyle(color=ft.Colors.GREY_400),
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=8,
-            ),
-            padding=ft.Padding(0, 20, 0, 10),
-        )
-
-        self.page.add(
-            header,
-            card_renda,
-            card_resumo,
-            form_lancamento,
-            ft.Divider(height=20),
-            barra_filtros,
-            busca_e_categoria,
-            self.grafico_ui,
-            ft.Divider(height=10),
-            ft.Text("📋 Registros do Mês", weight=ft.FontWeight.BOLD, size=16),
-            self.lista_gastos_ui,
-            rodape
-        )
+        self.page.add(*montar_dashboard(self))
 
         # Registra o snackbar e o diálogo de relatório uma única vez no overlay da página
         if self.snack not in self.page.overlay:
