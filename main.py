@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -77,6 +78,12 @@ async def main(page: ft.Page):
     asyncio.create_task(tentar_auto_login())
 
 if __name__ == "__main__":
-    # Garante que a pasta pública onde os relatórios exportados ficam existe
     os.makedirs(os.path.join(os.getcwd(), "assets", "exports"), exist_ok=True)
-    ft.run(main, assets_dir="assets")
+    # Roda em modo web (view=ft.AppView.WEB_BROWSER) se "--web" for passado
+    # na linha de comando; caso contrário, mantém o comportamento padrão de
+    # abrir como janela desktop.
+    modo_web = "--web" in sys.argv
+    if modo_web:
+        ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
+    else:
+        ft.run(main, assets_dir="assets")

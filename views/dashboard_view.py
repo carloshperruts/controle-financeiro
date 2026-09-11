@@ -554,13 +554,13 @@ class DashboardView:
         if cor_bg is None:
             cor_bg = ft.Colors.RED_700 if e_erro else ft.Colors.GREEN_700
 
-        # Remove a instância anterior do overlay (se ainda estiver lá) e cria uma
-        # nova a cada chamada. Reaproveitar sempre o mesmo objeto SnackBar fazia
-        # com que ações repetidas (ex.: salvar a renda várias vezes seguidas) não
-        # notificassem depois da primeira vez, pois o Flet não detectava mudança
-        # de estado em open=True -> open=True no mesmo objeto.
-        if self.snack in self.page.overlay:
-            self.page.overlay.remove(self.snack)
+        # Remove QUALQUER SnackBar que tenha ficado preso no overlay (não só a
+        # última instância). Antes, só self.snack era removido: se duas
+        # chamadas aconteciam em sequência rápida (ex. um clique acidental
+        # seguido de outra ação), o snack antigo ficava esquecido com
+        # open=True no overlay e reaparecia sozinho no próximo page.update(),
+        # mesmo sem ninguém chamar mostrar_snack de novo.
+        self.page.overlay[:] = [c for c in self.page.overlay if not isinstance(c, ft.SnackBar)]
 
         self.snack = ft.SnackBar(
             content=ft.Row([
@@ -568,7 +568,8 @@ class DashboardView:
                 ft.Text(msg, color=ft.Colors.WHITE)
             ]),
             bgcolor=cor_bg,
-            open=True
+            open=True,
+            duration=4000,
         )
         self.page.overlay.append(self.snack)
         self.page.update()
@@ -598,7 +599,7 @@ class DashboardView:
                     on_click=lambda _: asyncio.create_task(self.fechar_sessao_cb())
                 ),
             ])
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
 
         card_renda = ft.Container(
             content=ft.Row([
