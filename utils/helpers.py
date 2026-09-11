@@ -48,20 +48,19 @@ async def obter_sessao_local(page):
 def obter_mes_ano_efetivo(item):
     """
     Calcula o mês e ano do lançamento.
-    Se for Cartão de Crédito, lança o gasto para o mês seguinte.
+
+    O campo 'created_at' já é gravado por adicionar_registro() com a data de
+    vencimento escolhida pelo usuário (Vencimento Dia/Mês), inclusive para
+    Cartão de Crédito. Por isso, aqui usamos o mês/ano diretamente dessa data,
+    sem somar +1 mês novamente (isso duplicava o deslocamento e fazia uma
+    compra com vencimento em Setembro aparecer no filtro de Outubro).
     """
     raw_data = item.get("created_at") or item.get("data")
-    forma = item.get("forma_pagamento", "Débito / Pix")
     try:
         dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00")) if raw_data else datetime.now()
     except Exception:
         dt = datetime.now()
 
-    if forma == "Cartão de Crédito":
-        if dt.month == 12:
-            return "01", str(dt.year + 1), dt
-        else:
-            return str(dt.month + 1).zfill(2), str(dt.year), dt
     return str(dt.month).zfill(2), str(dt.year), dt
 
 def exportar_para_csv(registros_cache, mes_sel, ano_sel):
@@ -119,4 +118,4 @@ def exportar_para_csv(registros_cache, mes_sel, ano_sel):
         url_relativa = f"/exports/{nome_arquivo}"
         return True, "✔ Relatório gerado! Iniciando o download...", (url_relativa, caminho_completo)
     except Exception as err:
-        return False, f"❌ Erro ao exportar: {str(err)}", None  
+        return False, f"❌ Erro ao exportar: {str(err)}", None
