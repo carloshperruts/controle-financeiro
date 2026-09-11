@@ -7,6 +7,24 @@ from datetime import datetime
 CHAVE_ACCESS_TOKEN = "perrut.auth.access_token"
 CHAVE_REFRESH_TOKEN = "perrut.auth.refresh_token"
 
+def parse_valor_br(texto, padrao=0.0):
+    """
+    Converte um valor digitado no formato brasileiro (ex.: '1.234,56')
+    para float (ex.: 1234.56).
+
+    Centraliza a regra usada em vários campos do formulário (renda, valor do
+    lançamento, etc.) para que uma mudança futura nessa conversão precise ser
+    feita em um único lugar, em vez de em cada tela separadamente.
+
+    Se o texto vier vazio ou inválido, retorna 'padrao' em vez de lançar erro.
+    """
+    if not texto:
+        return padrao
+    try:
+        return float(str(texto).replace(".", "").replace(",", "."))
+    except (ValueError, TypeError):
+        return padrao
+
 async def salvar_sessao_local(page, access_token, refresh_token):
     """Guarda os tokens da sessão no armazenamento local do dispositivo."""
     await page.shared_preferences.set(CHAVE_ACCESS_TOKEN, access_token)

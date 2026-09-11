@@ -2,7 +2,7 @@ import flet as ft
 import asyncio
 from datetime import datetime
 from config.supabase_client import supabase, CATEGORIAS
-from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv
+from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, parse_valor_br
 
 MESES_NOMES = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -131,8 +131,7 @@ class DashboardView:
         if not user:
             return
         try:
-            val_str = self.txt_renda.value.replace(".", "").replace(",", ".")
-            val_float = float(val_str)
+            val_float = parse_valor_br(self.txt_renda.value)
             supabase.table("profiles").upsert({"id": user.id, "renda_base": val_float}).execute()
             self.mostrar_snack("Renda atualizada com sucesso!")
             await self.carregar_registros()
@@ -168,7 +167,7 @@ class DashboardView:
             self.mostrar_snack("Preencha descrição e valor!", True)
             return
         try:
-            val_total = float(self.txt_val.value.replace(".", "").replace(",", "."))
+            val_total = parse_valor_br(self.txt_val.value)
             eh_credito = self.dd_forma.value == "Cartão de Crédito"
             num_parcelas = int(self.dd_parc.value.replace("x", "")) if eh_credito else 1
             venc_dia = self.dd_venc.value.replace("Dia ", "") if eh_credito else None
@@ -249,10 +248,7 @@ class DashboardView:
             self.mostrar_snack(f"Erro ao atualizar status: {str(err)}", True)
 
     def calcular_totais(self, filtrados):
-        try:
-            renda_base = float(self.txt_renda.value.replace(".", "").replace(",", "."))
-        except Exception:
-            renda_base = 0.0
+        renda_base = parse_valor_br(self.txt_renda.value)
 
         total_rec = sum(float(i.get("valor", 0)) for i in filtrados if i.get("tipo") == "Receita")
         total_desp = sum(float(i.get("valor", 0)) for i in filtrados if i.get("tipo") == "Despesa")
@@ -458,10 +454,7 @@ class DashboardView:
         mes_num_sel = str(MESES_NOMES.index(mes_nome_sel) + 1).zfill(2) if mes_nome_sel in MESES_NOMES else "09"
         ano_sel = self.dd_ano_relatorio.value
 
-        try:
-            renda_base = float(self.txt_renda.value.replace(".", "").replace(",", "."))
-        except Exception:
-            renda_base = 0.0
+        renda_base = parse_valor_br(self.txt_renda.value)
 
         filtrados = [
             i for i in self.registros_cache 
@@ -561,12 +554,23 @@ class DashboardView:
         if cor_bg is None:
             cor_bg = ft.Colors.RED_700 if e_erro else ft.Colors.GREEN_700
 
-        self.snack.content = ft.Row([
-            ft.Icon(ft.Icons.SYNC, color=ft.Colors.WHITE) if "Sincronizando" in msg else ft.Container(),
-            ft.Text(msg, color=ft.Colors.WHITE)
-        ])
-        self.snack.bgcolor = cor_bg
-        self.snack.open = True
+        # Remove a instância anterior do overlay (se ainda estiver lá) e cria uma
+        # nova a cada chamada. Reaproveitar sempre o mesmo objeto SnackBar fazia
+        # com que ações repetidas (ex.: salvar a renda várias vezes seguidas) não
+        # notificassem depois da primeira vez, pois o Flet não detectava mudança
+        # de estado em open=True -> open=True no mesmo objeto.
+        if self.snack in self.page.overlay:
+            self.page.overlay.remove(self.snack)
+
+        self.snack = ft.SnackBar(
+            content=ft.Row([
+                ft.Icon(ft.Icons.SYNC, color=ft.Colors.WHITE) if "Sincronizando" in msg else ft.Container(),
+                ft.Text(msg, color=ft.Colors.WHITE)
+            ]),
+            bgcolor=cor_bg,
+            open=True
+        )
+        self.page.overlay.append(self.snack)
         self.page.update()
 
     async def inicializar(self):
