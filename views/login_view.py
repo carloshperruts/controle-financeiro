@@ -208,7 +208,27 @@ class LoginView:
                     alignment=ft.Alignment(0, 0),
                     padding=20,
                     expand=True,
-                )
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Text("Desenvolvido por Carlos Perrut", size=11, color=ft.Colors.GREY_600),
+                            ft.Text("•", size=11, color=ft.Colors.GREY_800),
+                            ft.TextButton(
+                                "GitHub",
+                                icon=ft.Icons.CODE,
+                                icon_color=ft.Colors.GREY_600,
+                                url="https://github.com/carloshperruts",
+                                style=ft.ButtonStyle(color=ft.Colors.GREY_600),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=6,
+                    ),
+                    bottom=10,
+                    left=0,
+                    right=0,
+                ),
             ], expand=True)
         )
         self.page.update()

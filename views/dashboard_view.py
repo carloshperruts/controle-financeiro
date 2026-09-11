@@ -639,6 +639,24 @@ class DashboardView:
 
         busca_e_categoria = ft.Row([self.txt_busca, self.dd_filtro_cat, self.dd_filtro_forma], wrap=True)
 
+        rodape = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text("Desenvolvido por Carlos Perrut", size=12, color=ft.Colors.GREY_500),
+                    ft.Text("•", size=12, color=ft.Colors.GREY_700),
+                    ft.TextButton(
+                        "GitHub",
+                        icon=ft.Icons.CODE,
+                        url="https://github.com/carloshperruts",
+                        style=ft.ButtonStyle(color=ft.Colors.GREY_400),
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            padding=ft.Padding(0, 20, 0, 10),
+        )
+
         self.page.add(
             header,
             card_renda,
@@ -650,7 +668,8 @@ class DashboardView:
             self.grafico_ui,
             ft.Divider(height=10),
             ft.Text("📋 Registros do Mês", weight=ft.FontWeight.BOLD, size=16),
-            self.lista_gastos_ui
+            self.lista_gastos_ui,
+            rodape
         )
 
         # Registra o snackbar e o diálogo de relatório uma única vez no overlay da página
