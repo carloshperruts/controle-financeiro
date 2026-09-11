@@ -1,6 +1,6 @@
 # 💰 Perrut - Controle Financeiro
 
-Aplicativo desktop de controle financeiro pessoal desenvolvido em **Python**, com autenticação de usuários, persistência em banco de dados na nuvem e exportação de relatórios.
+Sistema web e desktop de controle financeiro pessoal desenvolvido em **Python**, com autenticação de usuários, persistência em banco de dados na nuvem e exportação de relatórios.
 
 O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. A partir daí, virou um estudo prático de arquitetura de software — separação de responsabilidades (views, config, utils), autenticação segura, integração com banco de dados externo e tratamento de erros em operações assíncronas.
 
@@ -21,7 +21,7 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 
 ## ✨ Funcionalidades
 
-- 🔐 **Login e autenticação** de usuários via Supabase
+- 🔐 **Login, cadastro e recuperação de senha** via Supabase
 - 💾 **Persistência de sessão local** (opção "lembrar login")
 - ➕ **Cadastro de receitas e despesas**, com categoria, forma de pagamento e status de pagamento
 - 📊 **Totais automáticos** por categoria e por tipo (receita/despesa)
@@ -29,7 +29,7 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 - 🗂️ **Filtros por mês e ano**
 - 📄 **Exportação de relatórios em CSV**
 - 🧾 **Relatório mensal detalhado**
-- 🖥️ Interface construída com **Flet** (Python + Flutter)
+- 🖥️ Interface construída com **Flet** (Python + Flutter), rodando tanto como **app desktop** quanto como **aplicação web** (`python main.py --web`)
 
 ---
 
@@ -43,11 +43,15 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 
 ---
 
-## 🧩 Decisões técnicas e desafios
+## 🧩 Desafios e aprendizados
 
+Mais do que decisões de arquitetura pensadas de antemão, o maior desafio deste projeto foi testar o app de ponta a ponta, encontrar os erros que só aparecem em uso real e ajustar o código a partir disso. Alguns exemplos concretos:
+
+- **Falha silenciosa de renderização (tela cinza):** combinar `wrap=True` num `ft.Row` com filhos `expand=True` gerava um crash do lado do Flutter sem nenhum erro no terminal Python. Foi preciso isolar o problema com scripts de teste progressivos (do mínimo até reproduzir a falha) até identificar a incompatibilidade e resolver trocando `expand=True` por larguras fixas.
 - **Sessão local com auto-login:** o app salva os tokens de sessão localmente e tenta reautenticar automaticamente ao abrir, com fallback seguro para a tela de login caso a sessão esteja expirada ou inválida — sem travar a aplicação.
-- **Variáveis de ambiente para credenciais:** `SUPABASE_URL` e `SUPABASE_KEY` nunca ficam hardcoded; o app falha de forma explícita (`RuntimeError`) se as variáveis não estiverem configuradas, em vez de falhar silenciosamente.
+- **Exportação assíncrona:** o download de CSV inicialmente travava por um descompasso entre chamada síncrona e assíncrona; resolvido encapsulando a chamada com `asyncio.create_task`, além de tratar caminhos de arquivo de forma diferente para desktop (`file:///`) e web.
 - **Exportação de CSV com encoding correto:** ajustei o delimitador (`;`) e a codificação do arquivo exportado para abrir corretamente no Excel em português, evitando o problema comum de acentuação quebrada em CSVs gerados por Python.
+- **Variáveis de ambiente para credenciais:** `SUPABASE_URL` e `SUPABASE_KEY` nunca ficam hardcoded; o app falha de forma explícita (`RuntimeError`) se as variáveis não estiverem configuradas, em vez de falhar silenciosamente.
 - **Operações assíncronas:** chamadas à API do Supabase rodam em thread separada (`asyncio.to_thread`) para não travar a interface enquanto os dados carregam.
 
 ---
@@ -86,7 +90,8 @@ SUPABASE_KEY=sua_chave_aqui
 Por fim, rode o projeto:
 
 ```bash
-python main.py
+python main.py          # abre como app desktop
+python main.py --web    # abre no navegador, como aplicação web
 ```
 
 ---
@@ -98,8 +103,9 @@ python main.py
 ├── config/
 │   └── supabase_client.py   # Conexão com Supabase e categorias padrão
 ├── views/
-│   ├── login_view.py        # Tela de login
-│   └── dashboard_view.py    # Tela principal (dashboard)
+│   ├── login_view.py        # Tela de login, cadastro e recuperação de senha
+│   ├── dashboard_view.py    # Lógica e estado do dashboard
+│   └── dashboard_ui.py      # Montagem dos componentes visuais do dashboard
 ├── components/
 │   └── matrix_bg.py         # Componentes visuais reutilizáveis
 ├── utils/
@@ -123,15 +129,16 @@ Estou em transição de carreira para desenvolvimento de software e busco oportu
 
 - [ ] Testes automatizados (unitários para `helpers.py` e integração para o fluxo de autenticação)
 - [ ] Exportação também em PDF, além de CSV
-- [ ] Deploy do relatório mensal como serviço web (avaliando Render/Railway)
-- [ ] Refatorar `dashboard_view.py` em componentes menores
+- [ ] Deploy do app em modo web num serviço de hospedagem (avaliando Render/Railway)
 
 ---
 
 ## 📬 Contato
 
 **Desenvolvido por:** Carlos Perrut
-**E-mail:** carloshperruts@gmail.com
+**E-mail:** carloshperruts [at] gmail [dot] com
+**LinkedIn:** [linkedin.com/in/carlos-henrique-perrut](https://www.linkedin.com/in/carlos-henrique-perrut)
+**GitHub:** [github.com/carloshperruts](https://github.com/carloshperruts)
 
 ---
 
