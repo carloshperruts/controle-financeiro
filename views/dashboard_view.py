@@ -78,7 +78,7 @@ class DashboardView:
             label="Ano",
             options=[ft.dropdown.Option(str(a)) for a in range(2024, 2031)],
             value="2026",
-            width=100
+            width=120
         )
         self.dd_ano_relatorio.on_select = lambda _: self.renderizar_registros()
 
