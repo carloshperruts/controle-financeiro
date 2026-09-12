@@ -42,6 +42,7 @@ def montar_header(dash):
 
 
 def montar_card_renda(dash):
+    largura_disponivel = (dash.page.width or 800) - 16
     return ft.Container(
         content=ft.Row([
             dash.txt_renda,
@@ -50,17 +51,20 @@ def montar_card_renda(dash):
                 on_click=lambda e: asyncio.create_task(dash.salvar_renda_usuario(e))
             )
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
-        padding=10, bgcolor=ft.Colors.GREY_900, border_radius=8
+        padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8,
+        width=largura_disponivel
     )
 
 
 def montar_card_resumo(dash):
+    largura_disponivel = (dash.page.width or 800) - 16
     return ft.Container(
         content=ft.Column([
             dash.lbl_saldo,
             ft.Row([dash.lbl_receita, dash.lbl_despesa], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
         ]),
-        padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8
+        padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8,
+        width=largura_disponivel
     )
 
 

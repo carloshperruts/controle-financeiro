@@ -34,12 +34,12 @@ class DashboardView:
         # baixo em vez de ficarem espremidos ou cortados.
         self.txt_desc = ft.TextField(label="Descrição", expand=True)
         self.txt_val = ft.TextField(label="Valor Total (R$)", width=140, keyboard_type=ft.KeyboardType.NUMBER)
-        self.dd_cat = ft.Dropdown(label="Categoria", options=[ft.dropdown.Option(c) for c in CATEGORIAS], value=CATEGORIAS[0], width=180)
+        self.dd_cat = ft.Dropdown(label="Categoria", options=[ft.dropdown.Option(c) for c in CATEGORIAS], value=CATEGORIAS[0], width=260)
         self.dd_forma = ft.Dropdown(
             label="Pagamento / Origem",
             options=[ft.dropdown.Option(f) for f in FORMAS_PAGAMENTO],
             value="Débito / Pix",
-            width=180
+            width=200
         )
         self.dd_parc = ft.Dropdown(
             label="Parcelas",
