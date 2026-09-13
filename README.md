@@ -127,9 +127,9 @@ Estou em transição de carreira para desenvolvimento de software e busco oportu
 
 ## 🔜 Próximos passos
 
-- [ ] Testes automatizados (unitários para `helpers.py` e integração para o fluxo de autenticação)
-- [ ] Exportação também em PDF, além de CSV
-- [ ] Deploy do app em modo web num serviço de hospedagem (avaliando Render/Railway)
+- [ ] Melhorias e correções contínuas conforme bugs forem identificados no uso real
+- [ ] Testes para validar o funcionamento das funcionalidades existentes
+- [ ] Atualizações incrementais trazendo pequenos ajustes e melhorias ao longo do tempo
 
 ---
 
