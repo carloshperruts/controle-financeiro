@@ -197,7 +197,10 @@ class DashboardView:
                 ano_parc = dt_base.year + ((mes_parc - 1) // 12)
                 mes_parc = ((mes_parc - 1) % 12) + 1
 
-                data_registro = datetime(ano_parc, mes_parc, min(dt_base.day, 28)).isoformat()
+                data_registro = datetime(
+                    ano_parc, mes_parc, min(dt_base.day, 28),
+                    dt_base.hour, dt_base.minute, dt_base.second
+                ).isoformat()
 
                 novos_registros.append({
                     "user_id": user.id,
@@ -380,7 +383,16 @@ class DashboardView:
 
                 venc = item.get("data_vencimento")
 
-                detalles_str = f"{cat} • {forma}"
+                # Data e hora do lançamento (já gravadas em 'created_at' por
+                # adicionar_registro; aqui só formatamos para exibição).
+                dt_lanc_raw = item.get("created_at", "")
+                try:
+                    dt_lanc_obj = datetime.fromisoformat(str(dt_lanc_raw).replace("Z", "+00:00"))
+                    data_hora_str = dt_lanc_obj.strftime("%d/%m/%Y %H:%M")
+                except Exception:
+                    data_hora_str = "Data indisponível"
+
+                detalles_str = f"🕒 {data_hora_str} • {cat} • {forma}"
                 if venc:
                     detalles_str += f" • Vencimento: Dia {venc}"
 
@@ -499,10 +511,10 @@ class DashboardView:
             
             dt_raw = item.get("created_at", "")
             try:
-                dt_obj = datetime.fromisoformat(dt_raw.replace("Z", "+00:00"))
-                data_str = dt_obj.strftime("%d/%m")
+                dt_obj = datetime.fromisoformat(str(dt_raw).replace("Z", "+00:00"))
+                data_str = dt_obj.strftime("%d/%m %H:%M")
             except Exception:
-                data_str = "01/09"
+                data_str = "--/-- --:--"
 
             is_rec = tipo == "Receita"
             cor_val = ft.Colors.GREEN_400 if is_rec else ft.Colors.RED_400
