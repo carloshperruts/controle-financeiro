@@ -3,3 +3,4 @@ matplotlib
 supabase
 requests
 python-dotenv
+tzdata

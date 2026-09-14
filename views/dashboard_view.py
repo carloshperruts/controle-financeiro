@@ -1,6 +1,7 @@
 import flet as ft
 import asyncio
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from config.supabase_client import supabase, CATEGORIAS
 from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, parse_valor_br
 from views.dashboard_ui import montar_dashboard
@@ -11,6 +12,10 @@ MESES_NOMES = [
 ]
 
 FORMAS_PAGAMENTO = ["Débito / Pix", "Cartão de Crédito", "Dinheiro"]
+
+# O servidor (Render) roda em UTC, não no horário de Brasília.
+# Forçamos o fuso correto para que "agora" reflita a hora real do usuário.
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 class DashboardView:
     def __init__(self, page: ft.Page, sessao_usuario: dict, fechar_sessao_cb):
@@ -186,7 +191,7 @@ class DashboardView:
                     ano_base += 1
                 dt_base = datetime(ano_base, mes_base, dia_base)
             else:
-                dt_base = datetime.now()
+                dt_base = datetime.now(FUSO_BR)
 
             for i in range(num_parcelas):
                 desc_final = self.txt_desc.value
