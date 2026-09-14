@@ -46,10 +46,7 @@ def montar_card_renda(dash):
     return ft.Container(
         content=ft.Row([
             dash.txt_renda,
-            ft.ElevatedButton(
-                "Salvar Renda", bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE,
-                on_click=lambda e: asyncio.create_task(dash.salvar_renda_usuario(e))
-            )
+            ft.Row([dash.btn_salvar_renda, dash.loading_renda], spacing=10)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
         padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8,
         width=largura_disponivel
@@ -76,16 +73,9 @@ def montar_form_lancamento(dash):
             ft.Row([dash.txt_val, dash.dd_cat, dash.dd_forma], wrap=True),
             ft.Row([dash.dd_parc, dash.dd_venc, dash.dd_venc_mes], wrap=True),
             ft.Row([
-                ft.ElevatedButton(
-                    "Adicionar Receita", icon=ft.Icons.ADD_CIRCLE_OUTLINE,
-                    bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE,
-                    on_click=lambda _: asyncio.create_task(dash.adicionar_registro("Receita"))
-                ),
-                ft.ElevatedButton(
-                    "Adicionar Despesa", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                    bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE,
-                    on_click=lambda _: asyncio.create_task(dash.adicionar_registro("Despesa"))
-                ),
+                dash.btn_add_receita,
+                dash.btn_add_despesa,
+                dash.loading_registro,
             ], alignment=ft.MainAxisAlignment.END, wrap=True)
         ]),
         padding=15, bgcolor=ft.Colors.GREY_900, border_radius=8

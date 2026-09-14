@@ -113,18 +113,49 @@ class DashboardView:
         self.grafico_ui = ft.Column()
         self.lista_gastos_ui = ft.Column()
 
+        # Botões cujo 'disabled' muda durante uma operação assíncrona, e
+        # indicadores de carregamento (ProgressRing) separados que aparecem
+        # ao lado — mais simples e confiável do que reescrever o texto
+        # interno do botão, que não se propagava visualmente nesta versão
+        # do Flet mesmo chamando .update() no controle.
+        self.btn_salvar_renda = ft.ElevatedButton(
+            "Salvar Renda", bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE,
+            on_click=lambda e: asyncio.create_task(self.salvar_renda_usuario(e))
+        )
+        self.loading_renda = ft.ProgressRing(width=18, height=18, stroke_width=2, visible=False)
+
+        self.btn_add_receita = ft.ElevatedButton(
+            "Adicionar Receita", icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+            bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE,
+            on_click=lambda _: asyncio.create_task(self.adicionar_registro("Receita"))
+        )
+        self.btn_add_despesa = ft.ElevatedButton(
+            "Adicionar Despesa", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+            bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE,
+            on_click=lambda _: asyncio.create_task(self.adicionar_registro("Despesa"))
+        )
+        self.loading_registro = ft.ProgressRing(width=18, height=18, stroke_width=2, visible=False)
+
         # Cria UMA ÚNICA vez o snackbar e o diálogo de relatório, reaproveitados
         # em cada chamada (em vez de criar um novo componente a cada clique,
         # o que fazia a página acumular controles escondidos com o tempo)
         self.snack = ft.SnackBar(content=ft.Text(""), bgcolor=ft.Colors.GREEN_700)
         self.dlg_relatorio = ft.AlertDialog(title=ft.Text(""), content=ft.Container())
+        self.dlg_confirmar_exclusao = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar exclusão"),
+            content=ft.Text("Tem certeza que deseja excluir este lançamento? Essa ação não pode ser desfeita.")
+        )
 
     async def carregar_renda_usuario(self):
         user = self.sessao_usuario.get("user")
         if not user:
             return
         try:
-            res = supabase.table("profiles").select("renda_base").eq("id", user.id).execute()
+            def api_call():
+                return supabase.table("profiles").select("renda_base").eq("id", user.id).execute()
+
+            res = await asyncio.to_thread(api_call)
             if res.data:
                 renda = res.data[0].get("renda_base", 0)
                 self.txt_renda.value = f"{float(renda):.2f}".replace(".", ",")
@@ -136,13 +167,24 @@ class DashboardView:
         user = self.sessao_usuario.get("user")
         if not user:
             return
+        self.btn_salvar_renda.disabled = True
+        self.loading_renda.visible = True
+        self.page.update()
         try:
             val_float = parse_valor_br(self.txt_renda.value)
-            supabase.table("profiles").upsert({"id": user.id, "renda_base": val_float}).execute()
+
+            def api_call():
+                return supabase.table("profiles").upsert({"id": user.id, "renda_base": val_float}).execute()
+
+            await asyncio.to_thread(api_call)
             self.mostrar_snack("Renda atualizada com sucesso!")
             await self.carregar_registros()
         except Exception as err:
             self.mostrar_snack(f"Erro ao salvar renda: {str(err)}", True)
+        finally:
+            self.btn_salvar_renda.disabled = False
+            self.loading_renda.visible = False
+            self.page.update()
 
     async def atualizar_manual(self, e=None):
         self.mostrar_snack("🔄 Sincronizando com o servidor...", cor_bg=ft.Colors.BLUE_600)
@@ -153,7 +195,10 @@ class DashboardView:
         if not user:
             return
         try:
-            res = supabase.table("gastos").select("*").eq("user_id", user.id).order("created_at", desc=True).limit(2000).execute()
+            def api_call():
+                return supabase.table("gastos").select("*").eq("user_id", user.id).order("created_at", desc=True).limit(2000).execute()
+
+            res = await asyncio.to_thread(api_call)
             self.registros_cache = res.data or []
             self.renderizar_registros()
         except Exception as err:
@@ -172,6 +217,11 @@ class DashboardView:
         if not user or not self.txt_desc.value or not self.txt_val.value:
             self.mostrar_snack("Preencha descrição e valor!", True)
             return
+
+        self.btn_add_receita.disabled = True
+        self.btn_add_despesa.disabled = True
+        self.loading_registro.visible = True
+        self.page.update()
         try:
             val_total = parse_valor_br(self.txt_val.value)
             eh_credito = self.dd_forma.value == "Cartão de Crédito"
@@ -182,14 +232,20 @@ class DashboardView:
             novos_registros = []
 
             if eh_credito:
-                # Usa o Dia/Mês de Vencimento escolhidos como base da 1ª parcela
+                # Usa o Dia/Mês de Vencimento escolhidos como base da 1ª parcela,
+                # mas preserva a hora real do cadastro (agora_local), em vez de
+                # deixar hora/minuto/segundo zerados (00:00:00).
                 dia_base = min(int(venc_dia), 28)
                 mes_base = MESES_NOMES.index(self.dd_venc_mes.value) + 1
                 ano_base = datetime.now().year
                 # Se o mês escolhido já passou este ano, assume que é pro próximo ano
                 if mes_base < datetime.now().month:
                     ano_base += 1
-                dt_base = datetime(ano_base, mes_base, dia_base)
+                agora_local = datetime.now(FUSO_BR)
+                dt_base = datetime(
+                    ano_base, mes_base, dia_base,
+                    agora_local.hour, agora_local.minute, agora_local.second
+                )
             else:
                 dt_base = datetime.now(FUSO_BR)
 
@@ -218,7 +274,10 @@ class DashboardView:
                     "created_at": data_registro
                 })
 
-            supabase.table("gastos").insert(novos_registros).execute()
+            def api_call():
+                return supabase.table("gastos").insert(novos_registros).execute()
+
+            await asyncio.to_thread(api_call)
             self.txt_desc.value = ""
             self.txt_val.value = ""
             self.dd_parc.value = "1x"
@@ -227,13 +286,35 @@ class DashboardView:
             await self.carregar_registros()
         except Exception as err:
             self.mostrar_snack(f"Erro ao adicionar: {str(err)}", True)
+        finally:
+            self.btn_add_receita.disabled = False
+            self.btn_add_despesa.disabled = False
+            self.loading_registro.visible = False
+            self.page.update()
+
+    def confirmar_exclusao(self, reg_id):
+        """Mostra um diálogo de confirmação antes de excluir; só chama
+        deletar_registro se o usuário confirmar."""
+        def ao_confirmar(e):
+            self.fechar_dialogo(self.dlg_confirmar_exclusao)
+            asyncio.create_task(self.deletar_registro(reg_id))
+
+        self.dlg_confirmar_exclusao.actions = [
+            ft.TextButton("Cancelar", on_click=lambda e: self.fechar_dialogo(self.dlg_confirmar_exclusao)),
+            ft.TextButton("Excluir", style=ft.ButtonStyle(color=ft.Colors.RED_400), on_click=ao_confirmar),
+        ]
+        self.dlg_confirmar_exclusao.open = True
+        self.page.update()
 
     async def deletar_registro(self, reg_id):
         user = self.sessao_usuario.get("user")
         if not user:
             return
         try:
-            supabase.table("gastos").delete().eq("id", reg_id).eq("user_id", user.id).execute()
+            def api_call():
+                return supabase.table("gastos").delete().eq("id", reg_id).eq("user_id", user.id).execute()
+
+            await asyncio.to_thread(api_call)
             self.mostrar_snack("Lançamento excluído!")
             await self.carregar_registros()
         except Exception as err:
@@ -245,7 +326,10 @@ class DashboardView:
         if not user:
             return
         try:
-            supabase.table("gastos").update({"pago": novo_status}).eq("id", reg_id).eq("user_id", user.id).execute()
+            def api_call():
+                return supabase.table("gastos").update({"pago": novo_status}).eq("id", reg_id).eq("user_id", user.id).execute()
+
+            await asyncio.to_thread(api_call)
             # Atualiza direto no cache local, sem precisar buscar tudo de novo no servidor
             for item in self.registros_cache:
                 if item.get("id") == reg_id:
@@ -430,7 +514,7 @@ class DashboardView:
                         icon=ft.Icons.DELETE_OUTLINE,
                         icon_color=ft.Colors.RED_400,
                         tooltip="Excluir",
-                        on_click=lambda _, r_id=reg_id: asyncio.create_task(self.deletar_registro(r_id))
+                        on_click=lambda _, r_id=reg_id: self.confirmar_exclusao(r_id)
                     )
                 )
 
@@ -602,6 +686,8 @@ class DashboardView:
             self.page.overlay.append(self.snack)
         if self.dlg_relatorio not in self.page.overlay:
             self.page.overlay.append(self.dlg_relatorio)
+        if self.dlg_confirmar_exclusao not in self.page.overlay:
+            self.page.overlay.append(self.dlg_confirmar_exclusao)
 
         await self.carregar_renda_usuario()
         await self.carregar_registros()
