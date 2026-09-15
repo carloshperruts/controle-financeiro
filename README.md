@@ -8,6 +8,9 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 
 ## 📸 Demonstração
 
+**Preview geral (versão atual)**
+![Preview geral do sistema](screenshots/preview_geral.gif)
+
 **Tela de Login**
 ![Tela de login](screenshots/tela_de_login.gif)
 
