@@ -1,4 +1,5 @@
 import os
+import re
 import csv
 import uuid
 from datetime import datetime
@@ -6,6 +7,22 @@ from datetime import datetime
 # Chaves usadas no client_storage do Flet para o "Lembrar login"
 CHAVE_ACCESS_TOKEN = "perrut.auth.access_token"
 CHAVE_REFRESH_TOKEN = "perrut.auth.refresh_token"
+
+# Regex simples para checar apenas o *formato* do e-mail (algo@algo.algo).
+# Não confirma se o e-mail existe de fato — isso a API de autenticação não
+# revela por segurança (evita que alguém descubra quais e-mails têm conta
+# testando um por um). Serve só para pegar erros de digitação óbvios antes
+# de chamar a API (ex.: esquecer o "@" ou o domínio).
+_REGEX_EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+def validar_formato_email(email_val):
+    """
+    Retorna True se 'email_val' tem um formato de e-mail plausível
+    (contém "@" e um domínio com ponto), False caso contrário.
+
+    Não valida se o e-mail realmente existe/está cadastrado.
+    """
+    return bool(_REGEX_EMAIL.match(str(email_val or "").strip()))
 
 def parse_valor_br(texto, padrao=0.0):
     """
