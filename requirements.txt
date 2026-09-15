@@ -1,6 +1,6 @@
 flet==0.86.5
-matplotlib
-supabase
-requests
-python-dotenv
-tzdata
+matplotlib==3.11.1
+supabase==2.31.0
+requests==2.34.2
+python-dotenv==1.2.3
+tzdata==2026.3
