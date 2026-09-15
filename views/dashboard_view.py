@@ -167,6 +167,11 @@ class DashboardView:
         user = self.sessao_usuario.get("user")
         if not user:
             return
+
+        if parse_valor_br(self.txt_renda.value) < 0:
+            self.mostrar_snack("A renda não pode ser negativa!", True)
+            return
+
         self.btn_salvar_renda.disabled = True
         self.loading_renda.visible = True
         self.page.update()
@@ -216,6 +221,10 @@ class DashboardView:
         user = self.sessao_usuario.get("user")
         if not user or not self.txt_desc.value or not self.txt_val.value:
             self.mostrar_snack("Preencha descrição e valor!", True)
+            return
+
+        if parse_valor_br(self.txt_val.value) < 0:
+            self.mostrar_snack("O valor não pode ser negativo!", True)
             return
 
         self.btn_add_receita.disabled = True
