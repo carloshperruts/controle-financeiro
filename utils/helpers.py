@@ -25,6 +25,41 @@ def parse_valor_br(texto, padrao=0.0):
     except (ValueError, TypeError):
         return padrao
 
+
+def calcular_valor_parcela(valor_total, num_parcelas):
+    """
+    Divide o valor total de uma compra pelo número de parcelas, arredondado
+    para 2 casas decimais (padrão de moeda).
+
+    Ex.: calcular_valor_parcela(100.0, 3) -> 33.33
+    """
+    return round(valor_total / num_parcelas, 2)
+
+
+def calcular_data_parcela(dt_base, indice_parcela):
+    """
+    Calcula a data (ano, mês, dia, hora) da N-ésima parcela de uma compra
+    parcelada, a partir de uma data base (dt_base) e do índice da parcela
+    (0 para a 1ª parcela, 1 para a 2ª, etc.).
+
+    O mês avança 'indice_parcela' meses a partir de dt_base, rolando para o
+    ano seguinte automaticamente quando ultrapassa dezembro (ex.: parcela 3
+    de uma compra em novembro/2026 cai em janeiro/2027, não mês 14).
+
+    O dia é limitado a 28, para evitar erros em meses com menos dias (todo
+    mês tem pelo menos 28 dias, então isso nunca gera uma data inválida).
+
+    Retorna um datetime "naive" (sem timezone), com a mesma hora/minuto/
+    segundo de dt_base — preservando a hora real do cadastro.
+    """
+    mes_parc = dt_base.month + indice_parcela
+    ano_parc = dt_base.year + ((mes_parc - 1) // 12)
+    mes_parc = ((mes_parc - 1) % 12) + 1
+    return datetime(
+        ano_parc, mes_parc, min(dt_base.day, 28),
+        dt_base.hour, dt_base.minute, dt_base.second
+    )
+
 async def salvar_sessao_local(page, access_token, refresh_token):
     """Guarda os tokens da sessão no armazenamento local do dispositivo."""
     await page.shared_preferences.set(CHAVE_ACCESS_TOKEN, access_token)
