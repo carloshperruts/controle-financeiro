@@ -1,4 +1,4 @@
-flet
+flet==0.86.5
 matplotlib
 supabase
 requests
