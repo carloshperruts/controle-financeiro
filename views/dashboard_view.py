@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from config.supabase_client import supabase, CATEGORIAS
-from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, parse_valor_br, calcular_valor_parcela, calcular_data_parcela
+from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, exportar_para_pdf, parse_valor_br, calcular_valor_parcela, calcular_data_parcela
 from views.dashboard_ui import montar_dashboard
 
 MESES_NOMES = [
@@ -575,6 +575,22 @@ class DashboardView:
             url_relativa, caminho_completo = resultado
             # Rodando como app web (Render, flet run --web): usa a rota servida pelo Flet.
             # Rodando como app desktop: não existe servidor HTTP, então abre o arquivo local direto.
+            if self.page.web:
+                await self.page.launch_url(url_relativa)
+            else:
+                await self.page.launch_url(f"file:///{caminho_completo.replace(chr(92), '/')}")
+
+    def acao_exportar_pdf(self, e):
+        asyncio.create_task(self._acao_exportar_pdf_async())
+
+    async def _acao_exportar_pdf_async(self):
+        mes_nome_sel = self.dd_mes_relatorio.value
+        mes_num_sel = str(MESES_NOMES.index(mes_nome_sel) + 1).zfill(2) if mes_nome_sel in MESES_NOMES else "09"
+        renda_base = parse_valor_br(self.txt_renda.value)
+        sucesso, msg, resultado = exportar_para_pdf(self.registros_cache, mes_num_sel, self.dd_ano_relatorio.value, renda_base)
+        self.mostrar_snack(msg, not sucesso)
+        if sucesso and resultado:
+            url_relativa, caminho_completo = resultado
             if self.page.web:
                 await self.page.launch_url(url_relativa)
             else:

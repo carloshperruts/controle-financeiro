@@ -4,3 +4,4 @@ supabase==2.31.0
 requests==2.34.2
 python-dotenv==1.2.3
 tzdata==2026.3
+reportlab==4.2.5

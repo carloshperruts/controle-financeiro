@@ -88,6 +88,7 @@ def montar_barra_filtros(dash):
         dash.dd_ano_relatorio,
         ft.ElevatedButton("Relatório", icon=ft.Icons.ASSESSMENT, on_click=dash.abrir_relatorio_mensal),
         ft.ElevatedButton("Exportar CSV", icon=ft.Icons.DOWNLOAD, on_click=dash.acao_exportar_csv),
+        ft.ElevatedButton("Exportar PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=dash.acao_exportar_pdf),
     ], wrap=True)
 
 
