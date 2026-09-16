@@ -2,7 +2,7 @@ import flet as ft
 import asyncio
 from config.supabase_client import supabase
 from components.matrix_bg import criar_fundo_matrix_animado
-from utils.helpers import salvar_sessao_local, limpar_sessao_local
+from utils.helpers import salvar_sessao_local, limpar_sessao_local, validar_formato_email
 
 class LoginView:
     def __init__(self, page: ft.Page, ao_sucesso):
@@ -74,6 +74,19 @@ class LoginView:
             self.page.update()
             return
 
+        # Validações de formato, feitas localmente (sem chamar a API): pegam
+        # erros óbvios de digitação e podem apontar exatamente qual campo
+        # está errado, porque não dependem de consultar a base de usuários.
+        if not validar_formato_email(email_val):
+            self.msg_erro.value = "⚠️ Informe um e-mail em formato válido (ex: nome@email.com)."
+            self.page.update()
+            return
+
+        if len(senha_val) < 6:
+            self.msg_erro.value = "⚠️ A senha deve ter pelo menos 6 caracteres."
+            self.page.update()
+            return
+
         try:
             def api_call():
                 return supabase.auth.sign_in_with_password({"email": email_val, "password": senha_val})
@@ -87,11 +100,20 @@ class LoginView:
                     await limpar_sessao_local(self.page)
                 await self.ao_sucesso(res.user, res.session)
             else:
-                self.msg_erro.value = "❌ Falha ao autenticar. Verifique seus dados."
+                # A partir daqui, e-mail e senha já têm formato válido, mas a
+                # API recusou o login. O Supabase, por segurança, não informa
+                # se o problema foi o e-mail ou a senha (evita que alguém
+                # descubra quais e-mails têm conta testando um por um), então
+                # a mensagem cobre os dois campos em vez de apontar um só.
+                self.msg_erro.value = "❌ E-mail ou senha incorretos. Verifique os dois campos e tente novamente."
                 self.page.update()
 
         except Exception as ex:
-            self.msg_erro.value = f"❌ Erro ao entrar: {str(ex)}"
+            mensagem_erro = str(ex).lower()
+            if "invalid login credentials" in mensagem_erro:
+                self.msg_erro.value = "❌ E-mail ou senha incorretos. Verifique os dois campos e tente novamente."
+            else:
+                self.msg_erro.value = f"❌ Erro ao entrar: {str(ex)}"
             self.page.update()
 
     async def realizar_cadastro(self, e):
