@@ -91,7 +91,7 @@ class DashboardView:
             label="Buscar", 
             prefix_icon=ft.Icons.SEARCH, 
             width=220,
-            on_change=lambda _: self.renderizar_registros()
+            on_change=self.buscar_com_debounce
         )
 
         self.dd_filtro_cat = ft.Dropdown(
@@ -112,6 +112,12 @@ class DashboardView:
 
         self.grafico_ui = ft.Column()
         self.lista_gastos_ui = ft.Column()
+
+        # Controla a tarefa de espera (debounce) da busca: a cada tecla
+        # digitada, a espera anterior é cancelada e uma nova começa. Só
+        # quando o usuário para de digitar por um tempo é que a lista é
+        # de fato recalculada, evitando recalcular a cada tecla.
+        self._busca_task = None
 
         # Botões cujo 'disabled' muda durante uma operação assíncrona, e
         # indicadores de carregamento (ProgressRing) separados que aparecem
@@ -420,6 +426,27 @@ class DashboardView:
             if bloco_despesas:
                 self.grafico_ui.controls.append(ft.Divider(height=15))
             self.grafico_ui.controls.extend(bloco_receitas)
+
+    def buscar_com_debounce(self, e=None):
+        """
+        Chamado a cada tecla digitada no campo de busca. Em vez de
+        recalcular a lista imediatamente, cancela a espera anterior (se
+        houver) e agenda uma nova checagem daqui a 400ms — só quando o
+        usuário realmente parar de digitar por esse intervalo é que
+        renderizar_registros() roda de fato. Reduz recálculos desnecessários
+        conforme a lista de lançamentos cresce.
+        """
+        if self._busca_task is not None:
+            self._busca_task.cancel()
+
+        async def esperar_e_renderizar():
+            try:
+                await asyncio.sleep(0.4)
+                self.renderizar_registros()
+            except asyncio.CancelledError:
+                pass  # usuário continuou digitando; a espera foi substituída por uma nova
+
+        self._busca_task = asyncio.create_task(esperar_e_renderizar())
 
     def renderizar_registros(self):
         self.lista_gastos_ui.controls.clear()

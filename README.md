@@ -69,8 +69,8 @@ Mais do que decisões de arquitetura pensadas de antemão, o maior desafio deste
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/seu-usuario/seu-repositorio.git
-cd seu-repositorio
+git clone https://github.com/carloshperruts/controle-financeiro.git
+cd controle-financeiro
 
 # 2. Crie um ambiente virtual (recomendado)
 python -m venv venv
