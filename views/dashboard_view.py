@@ -362,20 +362,20 @@ class DashboardView:
 
     def obter_cor_categoria(self, cat):
         cores = {
-            "Alimentação": ft.Colors.CYAN_400,
-            "Moradia": ft.Colors.RED_300,
-            "Transporte": ft.Colors.BLUE_400,
-            "Saúde & Bem-Estar": ft.Colors.PINK_300,
-            "Educação": ft.Colors.INDIGO_300,
-            "Lazer & Viagens": ft.Colors.GREEN_400,
-            "Assinaturas & Serviços": ft.Colors.ORANGE_400,
-            "Compras & Vestuário": ft.Colors.YELLOW_400,
-            "Dívidas & Empréstimos": ft.Colors.PURPLE_300,
-            "Investimentos & Reserva": ft.Colors.TEAL_400,
-            "Rendimento & Salário": ft.Colors.GREEN_400,
-            "Outros": ft.Colors.AMBER_400,
+            "Alimentação": "#00E5FF",            # ciano
+            "Moradia": "#FF5252",                # vermelho
+            "Transporte": "#448AFF",             # azul
+            "Saúde & Bem-Estar": "#FF80AB",      # rosa claro
+            "Educação": "#7C4DFF",               # violeta
+            "Lazer & Viagens": "#00E676",        # verde
+            "Assinaturas & Serviços": "#FF9100", # laranja
+            "Compras & Vestuário": "#FFEA00",    # amarelo
+            "Dívidas & Empréstimos": "#D500F9",  # magenta
+            "Investimentos & Reserva": "#1DE9B6",# verde-água
+            "Rendimento & Salário": "#B2FF59",   # verde-limão
+            "Outros": "#BDBDBD",                 # cinza
         }
-        return cores.get(cat, ft.Colors.GREY_400)
+        return cores.get(cat, "#BDBDBD")
 
     def atualizar_grafico(self, filtrados):
         self.grafico_ui.controls.clear()
