@@ -32,13 +32,29 @@ def parse_valor_br(texto, padrao=0.0):
     feita em um único lugar, em vez de em cada tela separadamente.
 
     Se o texto vier vazio ou inválido, retorna 'padrao' em vez de lançar erro.
+
+    Regras de leitura:
+      - "R$" e espaços são ignorados ("R$ 50,00" -> 50.0).
+      - Com vírgula, vale o formato brasileiro: ponto = milhar, vírgula = decimal.
+      - Sem vírgula e com um único ponto seguido de 1 ou 2 dígitos, o ponto é
+        decimal ("1234.56" -> 1234.56). Com 3 dígitos depois ("1.234"), é milhar.
+      - Notação científica, "nan", "inf" e formato americano ("1,234.56") são
+        recusados e devolvem 'padrao'.
     """
     if not texto:
         return padrao
-    try:
-        return float(str(texto).replace(".", "").replace(",", "."))
-    except (ValueError, TypeError):
+    t = re.sub(r"(?i)R\$|\s", "", str(texto))
+    if "," in t:
+        if t.rfind(".") > t.rfind(","):
+            return padrao
+        t = t.replace(".", "").replace(",", ".")
+    elif t.count(".") == 1 and len(t.split(".")[1]) != 3:
+        pass
+    else:
+        t = t.replace(".", "")
+    if not re.fullmatch(r"-?\d+(\.\d+)?", t):
         return padrao
+    return float(t)
 
 
 def calcular_valor_parcela(valor_total, num_parcelas):
