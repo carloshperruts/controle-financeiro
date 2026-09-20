@@ -3,6 +3,7 @@ import csv
 import re
 import uuid
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Chaves usadas no client_storage do Flet para o "Lembrar login"
 CHAVE_ACCESS_TOKEN = "perrut.auth.access_token"
@@ -94,6 +95,11 @@ async def obter_sessao_local(page):
     except Exception:
         return None, None
 
+# Fuso usado para decidir em qual mês/ano um lançamento cai. O servidor (Render)
+# e o banco trabalham em UTC, mas o mês que o usuário espera ver é o de Brasília.
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+
 def obter_mes_ano_efetivo(item):
     """
     Calcula o mês e ano do lançamento.
@@ -107,6 +113,10 @@ def obter_mes_ano_efetivo(item):
     raw_data = item.get("created_at") or item.get("data")
     try:
         dt = datetime.fromisoformat(str(raw_data).replace("Z", "+00:00")) if raw_data else datetime.now()
+        # Datas com fuso (ex.: UTC vindo do Supabase) são convertidas para Brasília;
+        # datas sem fuso já são tratadas como horário local e ficam como estão.
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(FUSO_BR).replace(tzinfo=None)
     except Exception:
         dt = datetime.now()
 
