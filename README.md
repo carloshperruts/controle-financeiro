@@ -24,13 +24,14 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 
 ## ✨ Funcionalidades
 
-- 🔐 **Login, cadastro e recuperação de senha** via Supabase
+- 🔐 **Login e cadastro** via Supabase, com envio do e-mail de recuperação de senha (a troca da senha pelo link ainda não está implementada)
 - 💾 **Persistência de sessão local** (opção "lembrar login")
 - ➕ **Cadastro de receitas e despesas**, com categoria, forma de pagamento e status de pagamento
+- 💳 **Compras parceladas no cartão de crédito**, com vencimento e divisão exata do valor entre as parcelas
 - 📊 **Totais automáticos** por categoria e por tipo (receita/despesa)
 - 📈 **Gráfico visual** dos gastos por categoria
 - 🗂️ **Filtros por mês e ano**
-- 📄 **Exportação de relatórios em CSV**
+- 📄 **Exportação de relatórios em CSV e PDF**
 - 🧾 **Relatório mensal detalhado**
 - 🖥️ Interface construída com **Flet** (Python + Flutter), rodando tanto como **app desktop** quanto como **aplicação web** (`python main.py --web`)
 
@@ -41,7 +42,8 @@ O projeto nasceu de uma necessidade real: organizar minhas próprias finanças. 
 - [Python](https://www.python.org/)
 - [Flet](https://flet.dev/) — construção da interface gráfica
 - [Supabase](https://supabase.com/) — autenticação e banco de dados
-- [Matplotlib](https://matplotlib.org/) — geração de gráficos
+- [ReportLab](https://www.reportlab.com/) — geração dos relatórios em PDF
+- [pytest](https://pytest.org/) — testes automatizados
 - [python-dotenv](https://pypi.org/project/python-dotenv/) — variáveis de ambiente
 
 ---
@@ -56,6 +58,15 @@ Mais do que decisões de arquitetura pensadas de antemão, o maior desafio deste
 - **Exportação de CSV com encoding correto:** ajustei o delimitador (`;`) e a codificação do arquivo exportado para abrir corretamente no Excel em português, evitando o problema comum de acentuação quebrada em CSVs gerados por Python.
 - **Variáveis de ambiente para credenciais:** `SUPABASE_URL` e `SUPABASE_KEY` nunca ficam hardcoded; o app falha de forma explícita (`RuntimeError`) se as variáveis não estiverem configuradas, em vez de falhar silenciosamente.
 - **Operações assíncronas:** chamadas à API do Supabase rodam em thread separada (`asyncio.to_thread`) para não travar a interface enquanto os dados carregam.
+
+### 🐞 Bugs encontrados e corrigidos
+
+Numa revisão do código feita com apoio do Claude (IA), foram identificados quatro pontos de risco. Eu validei cada correção rodando o app localmente e depois no ar, e cada uma tem testes automatizados escritos para falhar no código antigo e passar com a correção:
+
+- **Centavos perdidos nas parcelas:** dividir e arredondar igual para todas as parcelas fazia R$ 100,00 em 3x somar R$ 99,99. A divisão agora é feita em centavos inteiros e o que sobra é distribuído entre as primeiras parcelas, então a soma sempre bate com o total (33,34 / 33,33 / 33,33).
+- **Leitura de valores digitados:** `1234.56` era lido como R$ 123.456,00, `R$ 50,00` virava zero e textos como `nan` ou `inf` passavam como número. A leitura passou a aceitar ponto decimal e o símbolo R$, e a recusar o que não é um valor válido.
+- **Um único cliente do Supabase para todos os usuários:** ao ler o código da biblioteca, vi que o cliente guarda um único token e que o último login sobrescreve o anterior. Como o app web atende várias sessões no mesmo processo, passei a criar um cliente por sessão. Com o RLS ativo no banco, o efeito esperado era falha nas consultas do usuário afetado, e não acesso a dados de terceiros.
+- **Fuso horário:** datas em UTC vindas do banco agora são convertidas para o horário de Brasília antes de decidir o mês de um lançamento, para que uma compra feita à noite não caia no mês seguinte.
 
 ---
 
@@ -99,22 +110,36 @@ python main.py --web    # abre no navegador, como aplicação web
 
 ---
 
+## 🧪 Testes automatizados
+
+O projeto tem 60 testes com [pytest](https://pytest.org/) para a lógica que não depende de tela nem de banco: leitura de valores, cálculo e divisão de parcelas, fuso horário e isolamento do cliente do Supabase por sessão. Eles rodam em poucos segundos e não usam internet nem credenciais reais.
+
+```bash
+pip install pytest
+python -m pytest
+```
+
+> A interface (Flet) e as chamadas reais ao Supabase ainda não têm testes automatizados; esses fluxos são conferidos manualmente.
+
+---
+
 ## 📁 Estrutura do projeto
 
 ```
 ├── main.py                  # Ponto de entrada da aplicação
 ├── config/
-│   └── supabase_client.py   # Conexão com Supabase e categorias padrão
+│   └── supabase_client.py   # Criação do cliente Supabase (um por sessão) e categorias padrão
 ├── views/
-│   ├── login_view.py        # Tela de login, cadastro e recuperação de senha
+│   ├── login_view.py        # Tela de login, cadastro e envio do e-mail de recuperação de senha
 │   ├── dashboard_view.py    # Lógica e estado do dashboard
 │   └── dashboard_ui.py      # Montagem dos componentes visuais do dashboard
 ├── components/
 │   └── matrix_bg.py         # Componentes visuais reutilizáveis
 ├── utils/
-│   └── helpers.py           # Funções auxiliares (sessão, exportação CSV, etc.)
+│   └── helpers.py           # Funções auxiliares (sessão, valores, parcelas, fuso, exportação CSV/PDF)
 ├── assets/
 │   └── exports/             # Relatórios exportados
+├── tests/                   # Testes automatizados (pytest)
 └── requirements.txt         # Dependências do projeto
 ```
 
@@ -131,7 +156,9 @@ Estou em transição de carreira para desenvolvimento de software e busco oportu
 ## 🔜 Próximos passos
 
 - [ ] Melhorias e correções contínuas conforme bugs forem identificados no uso real
-- [ ] Testes para validar o funcionamento das funcionalidades existentes
+- [x] Testes automatizados da lógica de negócio (valores, parcelas, fuso horário e cliente por sessão)
+- [ ] Testes da interface e das chamadas ao Supabase
+- [ ] Concluir o fluxo de recuperação de senha (troca da senha pelo link do e-mail)
 - [ ] Atualizações incrementais trazendo pequenos ajustes e melhorias ao longo do tempo
 
 ---
