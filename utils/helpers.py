@@ -2,6 +2,7 @@ import os
 import csv
 import re
 import uuid
+import calendar
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -85,6 +86,11 @@ def calcular_valores_parcelas(valor_total, num_parcelas):
     return [(base + (1 if i < sobra else 0)) / 100 for i in range(num_parcelas)]
 
 
+def ultimo_dia_do_mes(ano, mes):
+    """Devolve o último dia do mês (28, 29, 30 ou 31), já considerando ano bissexto."""
+    return calendar.monthrange(ano, mes)[1]
+
+
 def calcular_data_parcela(dt_base, indice_parcela):
     """
     Calcula a data (ano, mês, dia, hora) da N-ésima parcela de uma compra
@@ -95,8 +101,10 @@ def calcular_data_parcela(dt_base, indice_parcela):
     ano seguinte automaticamente quando ultrapassa dezembro (ex.: parcela 3
     de uma compra em novembro/2026 cai em janeiro/2027, não mês 14).
 
-    O dia é limitado a 28, para evitar erros em meses com menos dias (todo
-    mês tem pelo menos 28 dias, então isso nunca gera uma data inválida).
+    O dia é o mesmo de dt_base, limitado ao último dia do mês da parcela
+    (ex.: dia 31 de janeiro vira 28 ou 29 em fevereiro, mas volta a ser 31
+    em março), então nunca gera uma data inválida e uma compra feita no dia
+    29, 30 ou 31 continua registrada com a data real.
 
     Retorna um datetime "naive" (sem timezone), com a mesma hora/minuto/
     segundo de dt_base — preservando a hora real do cadastro.
@@ -105,7 +113,7 @@ def calcular_data_parcela(dt_base, indice_parcela):
     ano_parc = dt_base.year + ((mes_parc - 1) // 12)
     mes_parc = ((mes_parc - 1) % 12) + 1
     return datetime(
-        ano_parc, mes_parc, min(dt_base.day, 28),
+        ano_parc, mes_parc, min(dt_base.day, ultimo_dia_do_mes(ano_parc, mes_parc)),
         dt_base.hour, dt_base.minute, dt_base.second
     )
 

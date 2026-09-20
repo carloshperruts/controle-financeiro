@@ -175,6 +175,10 @@ class DashboardView:
         if not user:
             return
 
+        if self.txt_renda.value and parse_valor_br(self.txt_renda.value, padrao=None) is None:
+            self.mostrar_snack("Valor inválido! Use o formato 1234,56", True)
+            return
+
         if parse_valor_br(self.txt_renda.value) < 0:
             self.mostrar_snack("A renda não pode ser negativa!", True)
             return
@@ -228,6 +232,10 @@ class DashboardView:
         user = self.sessao_usuario.get("user")
         if not user or not self.txt_desc.value or not self.txt_val.value:
             self.mostrar_snack("Preencha descrição e valor!", True)
+            return
+
+        if parse_valor_br(self.txt_val.value, padrao=None) is None:
+            self.mostrar_snack("Valor inválido! Use o formato 1234,56", True)
             return
 
         if parse_valor_br(self.txt_val.value) < 0:
