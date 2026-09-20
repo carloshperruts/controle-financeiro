@@ -13,7 +13,16 @@ if not SUPABASE_URL or not SUPABASE_KEY:
         "ou nas variáveis de ambiente do Render (produção)."
     )
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def criar_cliente_supabase() -> Client:
+    """
+    Cria um cliente NOVO do Supabase.
+
+    Cada sessão de usuário (cada aba/navegador conectado ao app) deve ter o
+    seu próprio cliente. Um cliente guarda o token de quem fez login nele: se
+    vários usuários compartilhassem o mesmo cliente, o último login
+    sobrescreveria o token de todos os outros.
+    """
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Categorias padrão utilizadas nos formulários e filtros
 CATEGORIAS = [

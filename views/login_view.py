@@ -1,13 +1,13 @@
 import flet as ft
 import asyncio
-from config.supabase_client import supabase
 from components.matrix_bg import criar_fundo_matrix_animado
 from utils.helpers import salvar_sessao_local, limpar_sessao_local, validar_formato_email
 
 class LoginView:
-    def __init__(self, page: ft.Page, ao_sucesso):
+    def __init__(self, page: ft.Page, ao_sucesso, supabase):
         self.page = page
         self.ao_sucesso = ao_sucesso
+        self.supabase = supabase
         self.modo_auth = "login"
 
         # Mensagens de status
@@ -89,7 +89,7 @@ class LoginView:
 
         try:
             def api_call():
-                return supabase.auth.sign_in_with_password({"email": email_val, "password": senha_val})
+                return self.supabase.auth.sign_in_with_password({"email": email_val, "password": senha_val})
 
             res = await asyncio.to_thread(api_call)
 
@@ -136,7 +136,7 @@ class LoginView:
 
         try:
             def api_call():
-                return supabase.auth.sign_up({"email": email_val, "password": senha_val})
+                return self.supabase.auth.sign_up({"email": email_val, "password": senha_val})
 
             await asyncio.to_thread(api_call)
             self.mudar_modo("login")
@@ -158,7 +158,7 @@ class LoginView:
 
         try:
             def api_call():
-                return supabase.auth.reset_password_for_email(email_val)
+                return self.supabase.auth.reset_password_for_email(email_val)
 
             await asyncio.to_thread(api_call)
             self.mudar_modo("login")

@@ -8,7 +8,7 @@ import asyncio
 from views.login_view import LoginView
 from views.dashboard_view import DashboardView
 from utils.helpers import obter_sessao_local, limpar_sessao_local
-from config.supabase_client import supabase
+from config.supabase_client import criar_cliente_supabase
 
 async def main(page: ft.Page):
     # Configurações gerais da janela
@@ -20,6 +20,10 @@ async def main(page: ft.Page):
 
     # Estado da sessão
     sessao_usuario = {"user": None, "session": None}
+
+    # Cliente do Supabase exclusivo desta sessão (não é compartilhado com os
+    # outros usuários conectados ao mesmo tempo)
+    supabase = criar_cliente_supabase()
 
     async def fechar_sessao():
         sessao_usuario["user"] = None
@@ -36,14 +40,14 @@ async def main(page: ft.Page):
     async def carregar_dashboard():
         import traceback
         try:
-            dashboard = DashboardView(page, sessao_usuario, fechar_sessao)
+            dashboard = DashboardView(page, sessao_usuario, fechar_sessao, supabase)
             await dashboard.inicializar()
         except Exception:
             print("=== ERRO REAL AO CARREGAR O DASHBOARD ===")
             traceback.print_exc()
 
     def exibir_login():
-        login_screen = LoginView(page, login_sucesso)
+        login_screen = LoginView(page, login_sucesso, supabase)
         login_screen.renderizar()
 
     async def tentar_auto_login():

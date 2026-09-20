@@ -2,7 +2,7 @@ import flet as ft
 import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from config.supabase_client import supabase, CATEGORIAS
+from config.supabase_client import CATEGORIAS
 from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, exportar_para_pdf, parse_valor_br, calcular_valores_parcelas, calcular_data_parcela
 from views.dashboard_ui import montar_dashboard
 
@@ -18,10 +18,11 @@ FORMAS_PAGAMENTO = ["Débito / Pix", "Cartão de Crédito", "Dinheiro"]
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 class DashboardView:
-    def __init__(self, page: ft.Page, sessao_usuario: dict, fechar_sessao_cb):
+    def __init__(self, page: ft.Page, sessao_usuario: dict, fechar_sessao_cb, supabase):
         self.page = page
         self.sessao_usuario = sessao_usuario
         self.fechar_sessao_cb = fechar_sessao_cb
+        self.supabase = supabase
         self.registros_cache = []
 
         # Ativa scroll geral na página para evitar telas cinzas/cortadas
@@ -159,7 +160,7 @@ class DashboardView:
             return
         try:
             def api_call():
-                return supabase.table("profiles").select("renda_base").eq("id", user.id).execute()
+                return self.supabase.table("profiles").select("renda_base").eq("id", user.id).execute()
 
             res = await asyncio.to_thread(api_call)
             if res.data:
@@ -185,7 +186,7 @@ class DashboardView:
             val_float = parse_valor_br(self.txt_renda.value)
 
             def api_call():
-                return supabase.table("profiles").upsert({"id": user.id, "renda_base": val_float}).execute()
+                return self.supabase.table("profiles").upsert({"id": user.id, "renda_base": val_float}).execute()
 
             await asyncio.to_thread(api_call)
             self.mostrar_snack("Renda atualizada com sucesso!")
@@ -207,7 +208,7 @@ class DashboardView:
             return
         try:
             def api_call():
-                return supabase.table("gastos").select("*").eq("user_id", user.id).order("created_at", desc=True).limit(2000).execute()
+                return self.supabase.table("gastos").select("*").eq("user_id", user.id).order("created_at", desc=True).limit(2000).execute()
 
             res = await asyncio.to_thread(api_call)
             self.registros_cache = res.data or []
@@ -283,7 +284,7 @@ class DashboardView:
                 })
 
             def api_call():
-                return supabase.table("gastos").insert(novos_registros).execute()
+                return self.supabase.table("gastos").insert(novos_registros).execute()
 
             await asyncio.to_thread(api_call)
             self.txt_desc.value = ""
@@ -320,7 +321,7 @@ class DashboardView:
             return
         try:
             def api_call():
-                return supabase.table("gastos").delete().eq("id", reg_id).eq("user_id", user.id).execute()
+                return self.supabase.table("gastos").delete().eq("id", reg_id).eq("user_id", user.id).execute()
 
             await asyncio.to_thread(api_call)
             self.mostrar_snack("Lançamento excluído!")
@@ -335,7 +336,7 @@ class DashboardView:
             return
         try:
             def api_call():
-                return supabase.table("gastos").update({"pago": novo_status}).eq("id", reg_id).eq("user_id", user.id).execute()
+                return self.supabase.table("gastos").update({"pago": novo_status}).eq("id", reg_id).eq("user_id", user.id).execute()
 
             await asyncio.to_thread(api_call)
             # Atualiza direto no cache local, sem precisar buscar tudo de novo no servidor
