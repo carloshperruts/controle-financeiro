@@ -67,6 +67,24 @@ def calcular_valor_parcela(valor_total, num_parcelas):
     return round(valor_total / num_parcelas, 2)
 
 
+def calcular_valores_parcelas(valor_total, num_parcelas):
+    """
+    Devolve a lista com o valor de cada parcela, garantindo que a SOMA delas
+    seja exatamente o valor total (sem perder nem inventar centavos).
+
+    Dividir e arredondar igual para todas as parcelas perde centavos
+    (100,00 em 3x virava 33,33 x 3 = 99,99). Aqui o cálculo é feito em
+    centavos inteiros e os centavos que sobram são distribuídos, de 1 em 1,
+    entre as primeiras parcelas. Assim nenhuma parcela fica negativa e a
+    diferença entre duas parcelas quaisquer é de no máximo 1 centavo.
+
+    Ex.: calcular_valores_parcelas(100.0, 3) -> [33.34, 33.33, 33.33]
+    """
+    centavos_total = round(valor_total * 100)
+    base, sobra = divmod(centavos_total, num_parcelas)
+    return [(base + (1 if i < sobra else 0)) / 100 for i in range(num_parcelas)]
+
+
 def calcular_data_parcela(dt_base, indice_parcela):
     """
     Calcula a data (ano, mês, dia, hora) da N-ésima parcela de uma compra

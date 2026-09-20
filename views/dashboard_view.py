@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from config.supabase_client import supabase, CATEGORIAS
-from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, exportar_para_pdf, parse_valor_br, calcular_valor_parcela, calcular_data_parcela
+from utils.helpers import obter_mes_ano_efetivo, exportar_para_csv, exportar_para_pdf, parse_valor_br, calcular_valores_parcelas, calcular_data_parcela
 from views.dashboard_ui import montar_dashboard
 
 MESES_NOMES = [
@@ -243,7 +243,7 @@ class DashboardView:
             num_parcelas = int(self.dd_parc.value.replace("x", "")) if eh_credito else 1
             venc_dia = self.dd_venc.value.replace("Dia ", "") if eh_credito else None
 
-            valor_parcela = calcular_valor_parcela(val_total, num_parcelas)
+            valores_parcelas = calcular_valores_parcelas(val_total, num_parcelas)
             novos_registros = []
 
             if eh_credito:
@@ -274,7 +274,7 @@ class DashboardView:
                 novos_registros.append({
                     "user_id": user.id,
                     "descricao": desc_final,
-                    "valor": valor_parcela,
+                    "valor": valores_parcelas[i],
                     "categoria": self.dd_cat.value,
                     "forma_pagamento": self.dd_forma.value,
                     "tipo": tipo,
